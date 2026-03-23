@@ -379,7 +379,6 @@
     var currentSheetName = ''; 
     var currentUser = '';
     
-    // 💡 新增：追蹤目前題目是否已作答，用於頁籤切換時自動換題
     var isCurrentWordAnswered = false; 
 
     var accuracyChartInstance = null;
@@ -497,35 +496,48 @@
         document.getElementById('micBtn').classList.add('recording');
         document.getElementById('recordingStatus').style.display = 'block';
         document.getElementById('speakingFeedback').innerText = '';
-        // 💡 更新：提示文字明確化
         document.getElementById('recognizedText').innerText = '正在聆聽... (請說話)';
       };
+      
+      // 💡 口說結果判定與 API 連動
       recognition.onresult = function(event) {
-        isCurrentWordAnswered = true; // 💡 標記已作答
+        isCurrentWordAnswered = true; 
         var transcript = event.results[0][0].transcript.trim().toLowerCase();
         var targetWord = currentQuizItem.word.trim().toLowerCase();
         document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
+        
         var cleanTranscript = transcript.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\s]/g,"");
         var cleanTarget = targetWord.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\s]/g,"");
         var cleanKanji = currentQuizItem.kanji ? currentQuizItem.kanji.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\s]/g,"") : "";
 
         var feedback = document.getElementById('speakingFeedback');
-        if (cleanTranscript === cleanTarget || cleanTranscript.includes(cleanTarget) ||
-            (cleanKanji !== "" && (cleanTranscript === cleanKanji || cleanTranscript.includes(cleanKanji)))) {
+        var isCorrect = (cleanTranscript === cleanTarget || cleanTranscript.includes(cleanTarget) ||
+            (cleanKanji !== "" && (cleanTranscript === cleanKanji || cleanTranscript.includes(cleanKanji))));
+
+        let nextRev = '';
+
+        if (isCorrect) {
           feedback.innerText = '發音標準！💯';
           feedback.className = 'feedback success';
-          document.getElementById('speakingNextBtn').style.display = 'block';
+          
+          // 💡 更新：答對紀錄熟練度與時間
+          nextRev = applyQuizProficiency(currentQuizItem, '熟練');
+          updateBackend(currentQuizItem.word, true, null, 'speaking', '熟練', nextRev);
+
         } else {
-          // 💡 更新：發音錯誤時提醒用戶再次點擊麥克風
           feedback.innerText = '發音不太對喔，請再按一次麥克風重試！🤔';
           feedback.className = 'feedback danger';
-          document.getElementById('speakingNextBtn').style.display = 'block';
+          
+          // 💡 更新：答錯紀錄完全忘記與時間
+          nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
+          updateBackend(currentQuizItem.word, false, transcript, 'speaking', '完全忘記', nextRev);
         }
+        document.getElementById('speakingNextBtn').style.display = 'block';
         setTimeout(function() { document.getElementById('speakingNextBtn').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
       };
+      
       recognition.onerror = function(event) {
          var feedback = document.getElementById('speakingFeedback');
-         // 💡 更新：沒有聽到聲音時的清楚錯誤提示
          if(event.error === 'no-speech') {
              feedback.innerText = "未接收到聲音，請再按一次麥克風重試！";
          } else {
@@ -534,12 +546,12 @@
          feedback.className = 'feedback danger';
          document.getElementById('recognizedText').innerText = '辨識失敗';
       };
+      
       recognition.onend = function() {
         isRecording = false;
         document.getElementById('micBtn').classList.remove('recording');
         document.getElementById('recordingStatus').style.display = 'none';
         
-        // 💡 更新：如果結束時還停留在「正在聆聽」，代表完全沒收到音
         var recText = document.getElementById('recognizedText');
         if (recText.innerText === '正在聆聽... (請說話)') {
             recText.innerText = '';
@@ -856,7 +868,7 @@
       }
       
       currentBrowseIndex = 0; 
-      isCurrentWordAnswered = false; // 💡 重置作答狀態
+      isCurrentWordAnswered = false; 
       
       if(document.getElementById('browse').classList.contains('active')) loadBrowseCard();
       else if(document.getElementById('choice').classList.contains('active')) loadNextChoice();
@@ -889,8 +901,6 @@
          username: currentUser,
          nextReviewISO: nextReviewISO
       });
-      
-      // 💡 此處本來就會自動換題，無須手動操作
     }
 
     function updateProficiencyUI(level) {
@@ -920,8 +930,6 @@
       } else {
          document.getElementById('globalControls').style.display = 'flex';
          
-         // 💡 更新：跨頁籤同步換題邏輯
-         // 如果當前的題目已經「被作答過」，在切換頁籤時自動推進一題，避免重複看到同一個字
          if (isCurrentWordAnswered) {
              currentBrowseIndex = (currentBrowseIndex + 1) % vocabData.length;
              isCurrentWordAnswered = false; 
@@ -975,14 +983,14 @@
     function nextQuizWord(tab) {
       if(vocabData.length === 0) return;
       currentBrowseIndex = (currentBrowseIndex + 1) % vocabData.length;
-      isCurrentWordAnswered = false; // 💡 重置作答狀態
+      isCurrentWordAnswered = false; 
       if (tab === 'choice') loadNextChoice();
       if (tab === 'spelling') loadNextSpelling();
       if (tab === 'speaking') loadNextSpeaking();
     }
 
     function loadBrowseCard() {
-      isCurrentWordAnswered = false; // 💡 重置作答狀態
+      isCurrentWordAnswered = false; 
       if(vocabData.length === 0) {
         if(document.getElementById('sortSelect').value === 'sm2') {
            document.getElementById('browseWord').innerText = "🎉 恭喜！";
@@ -1046,7 +1054,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if(vocabData.length === 0) return;
 
-      isCurrentWordAnswered = false; // 💡 重置作答狀態
+      isCurrentWordAnswered = false; 
       currentQuizItem = vocabData[currentBrowseIndex]; 
       updateProgressUI(); 
 
@@ -1084,7 +1092,7 @@
         if (buttons[i].innerText === currentQuizItem.translation) buttons[i].classList.add('correct');
       }
       
-      isCurrentWordAnswered = true; // 💡 標記已作答
+      isCurrentWordAnswered = true; 
       var feedback = document.getElementById('choiceFeedback');
       let nextRev = '';
 
@@ -1113,7 +1121,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if(vocabData.length === 0) return;
 
-      isCurrentWordAnswered = false; // 💡 重置作答狀態
+      isCurrentWordAnswered = false; 
       currentQuizItem = vocabData[currentBrowseIndex]; 
       updateProgressUI(); 
 
@@ -1162,7 +1170,7 @@
       inputEl.disabled = true;
       document.getElementById('spellingSubmitBtn').style.display = 'none';
 
-      isCurrentWordAnswered = true; // 💡 標記已作答
+      isCurrentWordAnswered = true; 
       var isCorrect = false;
       var target1 = currentQuizItem.word.toLowerCase();
       var target2 = currentQuizItem.kanji ? currentQuizItem.kanji.toLowerCase() : '';
@@ -1208,7 +1216,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if(vocabData.length === 0) return;
 
-      isCurrentWordAnswered = false; // 💡 重置作答狀態
+      isCurrentWordAnswered = false; 
       currentQuizItem = vocabData[currentBrowseIndex]; 
       updateProgressUI(); 
       
