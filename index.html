@@ -142,11 +142,11 @@
     .ai-feedback-box { text-align: left; background: #fdfcff; border-left: 4px solid var(--premium); padding: 0.8rem; margin-top: 0.5rem; border-radius: 0 0.5rem 0.5rem 0; font-size: 0.95rem; color: #4c1d95; display: none; }
     .ai-item-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.5rem;}
     
-    /* 💡 AI 歷史診斷摺疊樣式 */
     .ai-hist-item { border-bottom: 1px solid #f3f4f6; padding: 0.8rem 0; }
     .ai-hist-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
     .ai-hist-content { display: none; margin-top: 0.8rem; padding: 1rem; background-color: #fdfcff; border-left: 4px solid var(--premium); border-radius: 0 0.5rem 0.5rem 0; font-size: 0.95rem; color: #4c1d95;}
     .ai-hist-content p { margin: 0.5rem 0; }
+    .ai-hist-content strong { color: var(--primary); }
 
     @media (max-width: 480px) {
       .section { padding: 1rem; }
@@ -238,6 +238,7 @@
       <button class="tab-btn" onclick="switchTab('spelling')">拼字題</button>
       <button class="tab-btn" onclick="switchTab('speaking')">🗣️ 口說</button>
       <button class="tab-btn" style="color:var(--premium);" onclick="switchTab('ai_tutor')">🤖 AI 特訓</button>
+      <button class="tab-btn" onclick="switchTab('records')">📜 紀錄</button>
     </nav>
 
     <main>
@@ -313,17 +314,21 @@
                <canvas id="profChart"></canvas>
             </div>
           </div>
-          
-          <div class="chart-box" style="grid-column: 1 / -1; padding: 1.5rem; justify-content: flex-start;">
-             <h4 style="color: var(--premium); margin-bottom: 1rem; margin-top:0;">🤖 AI 發音診斷簿</h4>
-             <div id="aiHistoryContainer" style="width: 100%; max-height: 300px; overflow-y: auto; text-align: left;">
-                </div>
-          </div>
+        </div>
+      </div>
 
-          <div class="chart-box" style="grid-column: 1 / -1; padding: 1.5rem; justify-content: flex-start; margin-top: 1rem;">
-             <h4 style="color: var(--danger); margin-bottom: 1rem; margin-top:0;">🚫 口說永久黑名單</h4>
-             <div id="blacklistContainer" style="width: 100%; max-height: 200px; overflow-y: auto; text-align: left;"></div>
-          </div>
+      <div id="records" class="section">
+        <h2 style="text-align:center; color:var(--primary); margin: 0 0 1.5rem 0;">📜 學習紀錄簿</h2>
+        
+        <div class="chart-box" style="padding: 1.5rem; justify-content: flex-start; margin-bottom: 1.5rem;">
+           <h4 style="color: var(--premium); margin-bottom: 1rem; margin-top:0;">🤖 AI 發音診斷簿</h4>
+           <div id="aiHistoryContainer" style="width: 100%; max-height: 400px; overflow-y: auto; text-align: left;">
+              </div>
+        </div>
+
+        <div class="chart-box" style="padding: 1.5rem; justify-content: flex-start;">
+           <h4 style="color: var(--danger); margin-bottom: 1rem; margin-top:0;">🚫 口說永久黑名單</h4>
+           <div id="blacklistContainer" style="width: 100%; max-height: 200px; overflow-y: auto; text-align: left;"></div>
         </div>
       </div>
 
@@ -651,7 +656,7 @@
             document.getElementById(btnId).classList.remove('recording');
             document.getElementById(btnId).innerText = btnText;
             
-            document.getElementById(fbId).innerHTML = '<div class="spinner" style="display:inline-block; border-top-color:var(--premium); width:20px; height:20px;"></div> AI 分析中...';
+            document.getElementById(fbId).innerHTML = '<div class="spinner" style="display:inline-block; border-top-color:var(--premium); width:20px; height:20px;"></div> AI 上傳分析中...';
         }
     }
 
@@ -676,18 +681,25 @@
                 let fbId = activeTarget === 'word' ? 'aiWordFeedback' : 'aiExampleFeedback';
                 if (res.success) {
                     let parsedHtml = marked.parse(res.reply);
-                    document.getElementById(fbId).innerHTML = parsedHtml;
+                    // 💡 取得回傳的錄音網址並插入播放按鈕
+                    let myAudioBtn = res.audioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="new Audio('${res.audioUrl}').play()">🎧 播放我的錄音</button>` : '';
+                    document.getElementById(fbId).innerHTML = parsedHtml + myAudioBtn;
                     
-                    if(activeTarget === 'word') currentQuizItem.aiWordFeedback = res.reply;
-                    else currentQuizItem.aiExampleFeedback = res.reply;
+                    if(activeTarget === 'word') {
+                        currentQuizItem.aiWordFeedback = res.reply;
+                        currentQuizItem.aiWordAudioUrl = res.audioUrl;
+                    } else {
+                        currentQuizItem.aiExampleFeedback = res.reply;
+                        currentQuizItem.aiExampleAudioUrl = res.audioUrl;
+                    }
                     
                     let p = globalProgressData.find(v => v.word === currentQuizItem.word && v.lang === currentSheetName);
                     if(p) {
-                        if(activeTarget === 'word') p.aiWordFeedback = res.reply;
-                        else p.aiExampleFeedback = res.reply;
+                        if(activeTarget === 'word') { p.aiWordFeedback = res.reply; p.aiWordAudioUrl = res.audioUrl; }
+                        else { p.aiExampleFeedback = res.reply; p.aiExampleAudioUrl = res.audioUrl; }
                     }
                     
-                    apiCall('saveAIFeedback', { sheetName: currentSheetName, word: currentQuizItem.word, username: currentUser, targetType: activeTarget, feedback: res.reply });
+                    apiCall('saveAIFeedback', { sheetName: currentSheetName, word: currentQuizItem.word, username: currentUser, targetType: activeTarget, feedback: res.reply, audioUrl: res.audioUrl });
                     
                 } else {
                     document.getElementById(fbId).innerHTML = `<span style="color:var(--danger);">❌ ${res.message}</span>`;
@@ -722,13 +734,15 @@
           let wFbBox = document.getElementById('aiWordFeedback');
           if(currentQuizItem.aiWordFeedback) {
               wFbBox.style.display = 'block';
-              wFbBox.innerHTML = marked.parse(currentQuizItem.aiWordFeedback);
+              let myAudioBtn = currentQuizItem.aiWordAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="new Audio('${currentQuizItem.aiWordAudioUrl}').play()">🎧 播放我的錄音</button>` : '';
+              wFbBox.innerHTML = marked.parse(currentQuizItem.aiWordFeedback) + myAudioBtn;
           } else { wFbBox.style.display = 'none'; wFbBox.innerHTML = ''; }
           
           let eFbBox = document.getElementById('aiExampleFeedback');
           if(currentQuizItem.aiExampleFeedback) {
               eFbBox.style.display = 'block';
-              eFbBox.innerHTML = marked.parse(currentQuizItem.aiExampleFeedback);
+              let myAudioBtn = currentQuizItem.aiExampleAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="new Audio('${currentQuizItem.aiExampleAudioUrl}').play()">🎧 播放我的錄音</button>` : '';
+              eFbBox.innerHTML = marked.parse(currentQuizItem.aiExampleFeedback) + myAudioBtn;
           } else { eFbBox.style.display = 'none'; eFbBox.innerHTML = ''; }
 
       } else {
@@ -762,7 +776,7 @@
       if(p) p.speakNextReview = farFuture;
 
       updateBackend(currentQuizItem.word, true, null, 'speaking', null, farFuture, null);
-      showToast(`已將「${currentQuizItem.word}」永久排除口說！\n(可於看板恢復)`, "warn");
+      showToast(`已將「${currentQuizItem.word}」永久排除口說！\n(可於紀錄頁面恢復)`, "warn");
       nextQuizWord('speaking');
     }
 
@@ -800,7 +814,7 @@
         });
     }
 
-    // 💡 新增：渲染 AI 發音診斷簿
+    // 💡 新增：渲染 AI 發音診斷簿 (包含 🔊 標準發音 & 🎧 用戶錄音按鈕)
     function renderAIHistory() {
         let container = document.getElementById('aiHistoryContainer');
         container.innerHTML = '';
@@ -829,8 +843,25 @@
             content.className = 'ai-hist-content';
             
             let html = '';
-            if(v.aiWordFeedback) html += `<div style="margin-bottom:1rem;"><strong>單字診斷：</strong><br>${marked.parse(v.aiWordFeedback)}</div>`;
-            if(v.aiExampleFeedback) html += `<div><strong>例句診斷：</strong><br>${marked.parse(v.aiExampleFeedback)}</div>`;
+            if(v.aiWordFeedback) {
+                html += `<div style="margin-bottom:1rem;">
+                            <div style="margin-bottom: 0.5rem;"><strong>單字診斷：</strong>
+                                <button class="speaker-btn" style="font-size:1rem;" onclick="speakText('${v.word}')">🔊 標準音</button>
+                                ${v.aiWordAudioUrl ? `<button class="btn-skip" style="font-size:0.8rem; padding:0.2rem 0.5rem; margin-left:0.5rem;" onclick="new Audio('${v.aiWordAudioUrl}').play()">🎧 我的錄音</button>` : ''}
+                            </div>
+                            ${marked.parse(v.aiWordFeedback)}
+                         </div>`;
+            }
+            if(v.aiExampleFeedback) {
+                let safeEx = (v.example ? v.example.replace(/\[|\]/g, '') : '').replace(/"/g, '&quot;');
+                html += `<div>
+                            <div style="margin-bottom: 0.5rem;"><strong>例句診斷：</strong>
+                                <button class="speaker-btn" style="font-size:1rem;" onclick="speakText(this.getAttribute('data-text'))" data-text="${safeEx}">🔊 標準音</button>
+                                ${v.aiExampleAudioUrl ? `<button class="btn-skip" style="font-size:0.8rem; padding:0.2rem 0.5rem; margin-left:0.5rem;" onclick="new Audio('${v.aiExampleAudioUrl}').play()">🎧 我的錄音</button>` : ''}
+                            </div>
+                            ${marked.parse(v.aiExampleFeedback)}
+                         </div>`;
+            }
             
             content.innerHTML = html;
             div.appendChild(header);
@@ -1171,16 +1202,12 @@
               } 
           }
       });
-      
-      // 💡 呼叫渲染 AI 診斷紀錄
-      renderAIHistory();
-      renderBlacklist();
     }
 
     function updateGlobalProgressLocally(word, type, isCorrect, profLevel, speakSim) {
       let p = globalProgressData.find(item => item.word === word && item.lang === currentSheetName);
       if (!p) {
-          p = { lang: currentSheetName, word: word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '', aiWordFeedback: '', aiExampleFeedback: '' };
+          p = { lang: currentSheetName, word: word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '', aiWordFeedback: '', aiExampleFeedback: '', aiWordAudioUrl: '', aiExampleAudioUrl: '' };
           globalProgressData.push(p);
       }
       if (type === 'choice') {
@@ -1342,6 +1369,14 @@
          document.getElementById('globalControls').style.display = 'none';
          document.getElementById('globalProgress').style.display = 'none'; 
          renderDashboard(); 
+         return;
+      } 
+      // 💡 新增：切換到紀錄分頁時的邏輯
+      else if (tabId === 'records') {
+         document.getElementById('globalControls').style.display = 'none';
+         document.getElementById('globalProgress').style.display = 'none'; 
+         renderAIHistory();
+         renderBlacklist();
          return;
       } else {
          document.getElementById('globalControls').style.display = 'flex';
