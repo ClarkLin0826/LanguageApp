@@ -2,13 +2,22 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
   <title>多語系單字學習</title>
+  
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#4f46e5">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌎</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌎</text></svg>">
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   
   <style>
     :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg: #f3f4f6; --card-bg: #ffffff; --text: #1f2937; --text-light: #6b7280; --success: #10b981; --danger: #ef4444; --warn: #f59e0b; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center;}
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; /* 避免下拉選單出現原生背景 */ -webkit-tap-highlight-color: transparent;}
     
     .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, var(--primary), #818cf8); display: flex; justify-content: center; align-items: center; z-index: 9999; }
     .card-box { background: white; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.2); text-align: center; display: flex; flex-direction: column; gap: 1.2rem; align-items: center; max-width: 90%; width: 350px; }
@@ -359,7 +368,7 @@
   </div>
 
   <script>
-    // ⚠️ 請把下方替換成你剛剛複製的 Google Apps Script API 網址 ⚠️
+    // ⚠️ 記得把這裡換回你專屬的 Google API 網址 ⚠️
     const API_URL = "https://script.google.com/macros/s/AKfycbwfysuXE77bR2x8YuK2bRHL9aPKNyxj2zug2MXBO6Km0mZbamXbAzaF_oqZwEOCjzEdvQ/exec";
 
     var allVocabData = []; 
@@ -374,15 +383,12 @@
     var accuracyChartInstance = null;
     var profChartInstance = null;
 
-    // --- 💡 核心 API 呼叫函數 (取代舊的 google.script.run) ---
     function apiCall(action, payload, onSuccess, onError) {
       if (API_URL.includes("請把你的")) {
-         alert("請先在原始碼第 504 行替換你的 API_URL！");
+         alert("請先在原始碼第 513 行替換你的 API_URL！");
          return;
       }
-      
       payload.action = action;
-      
       fetch(API_URL, {
         redirect: "follow",
         method: 'POST',
@@ -390,16 +396,10 @@
         body: JSON.stringify(payload)
       })
       .then(response => response.json())
-      .then(data => {
-         if(onSuccess) onSuccess(data);
-      })
-      .catch(error => {
-         console.error('API 錯誤:', error);
-         if(onError) onError(error);
-      });
+      .then(data => { if(onSuccess) onSuccess(data); })
+      .catch(error => { console.error('API 錯誤:', error); if(onError) onError(error); });
     }
 
-    // --- 登入與註冊 ---
     function toggleAuthMode(mode) {
       if(mode === 'login') {
         document.getElementById('loginBox').style.display = 'flex';
@@ -628,28 +628,33 @@
       });
     }
 
+    // 💡 更新：移除「如果是英文就隱藏」的判斷
     function populateLevelDropdown() {
       var levelRow = document.getElementById('levelFilterRow');
-      if (currentSheetName === '英文') {
-        levelRow.style.display = 'none'; 
-      } else {
-        levelRow.style.display = 'flex';
-        var select = document.getElementById('levelSelect');
-        var currentVal = select.value;
-        select.innerHTML = '<option value="all">全部等級</option>';
-        var uniqueLevels = [];
-        for(var i=0; i<allVocabData.length; i++) {
-          var lvl = allVocabData[i].level;
-          if(lvl && uniqueLevels.indexOf(lvl) === -1) uniqueLevels.push(lvl);
-        }
-        uniqueLevels.sort();
-        for(var j=0; j<uniqueLevels.length; j++) {
-          var opt = document.createElement('option');
-          opt.value = uniqueLevels[j]; opt.innerText = uniqueLevels[j];
-          select.appendChild(opt);
-        }
-        if (uniqueLevels.indexOf(currentVal) !== -1) select.value = currentVal;
+      levelRow.style.display = 'flex';
+      var select = document.getElementById('levelSelect');
+      var currentVal = select.value;
+      
+      select.innerHTML = '<option value="all">全部等級</option>';
+      var uniqueLevels = [];
+      for(var i=0; i<allVocabData.length; i++) {
+        var lvl = allVocabData[i].level;
+        if(lvl && uniqueLevels.indexOf(lvl) === -1) uniqueLevels.push(lvl);
       }
+      
+      // 💡 防呆：如果完全沒有找到任何等級資料，才隱藏該下拉選單
+      if(uniqueLevels.length === 0) {
+         levelRow.style.display = 'none';
+         return;
+      }
+      
+      uniqueLevels.sort();
+      for(var j=0; j<uniqueLevels.length; j++) {
+        var opt = document.createElement('option');
+        opt.value = uniqueLevels[j]; opt.innerText = uniqueLevels[j];
+        select.appendChild(opt);
+      }
+      if (uniqueLevels.indexOf(currentVal) !== -1) select.value = currentVal;
     }
 
     function initApp() {
@@ -664,6 +669,9 @@
       }
       
       document.getElementById('globalControls').style.display = 'flex';
+      
+      var browseEl = document.getElementById('browse');
+      if (browseEl.innerHTML.indexOf('題庫為空') !== -1) location.reload(); 
       
       populateLevelDropdown(); 
       applySort(); 
@@ -770,6 +778,7 @@
       return item.nextReview;
     }
 
+    // 💡 更新：移除「如果是英文就不執行」的限制
     function applySort() {
       if (allVocabData.length === 0) return;
       var sortType = document.getElementById('sortSelect').value;
@@ -778,7 +787,7 @@
 
       var sortedData = allVocabData.slice();
 
-      if (currentSheetName !== '英文' && selectedLevel !== 'all') {
+      if (selectedLevel !== 'all') {
         sortedData = sortedData.filter(item => item.level === selectedLevel);
       }
 
