@@ -507,10 +507,9 @@
             btn.innerText = "⏳ 讀取中...";
             btn.disabled = true;
             
-            // 透過後端去 Google Drive 拿 Base64 檔案
             apiCall('getAudio', { audioUrl: data }, function(res) {
                 if (res.success) {
-                    if (currentPlaybackBtn !== btn) return; // 使用者可能點了別的按鈕
+                    if (currentPlaybackBtn !== btn) return; 
                     
                     let audioSrc = `data:${res.mimeType};base64,${res.base64}`;
                     currentPlaybackAudio = new Audio(audioSrc);
@@ -723,7 +722,7 @@
 
     function processAIAudio() {
         let audioBlob = new Blob(aiAudioChunks, { type: aiMediaRecorder.mimeType });
-        let localBlobUrl = URL.createObjectURL(audioBlob); // 💡 建立本地暫存網址供瞬間播放
+        let localBlobUrl = URL.createObjectURL(audioBlob); 
         
         let reader = new FileReader();
         reader.readAsDataURL(audioBlob);
@@ -739,12 +738,13 @@
                 example: document.getElementById('aiExample').innerText,
                 lang: currentSheetName,
                 userRole: userRole,
+                username: currentUser, // 💡 修復：補上傳送 currentUser 以解決 undefined 檔名問題
                 targetType: activeTarget
             }, function(res) {
                 let fbId = activeTarget === 'word' ? 'aiWordFeedback' : 'aiExampleFeedback';
                 if (res.success) {
                     let parsedHtml = marked.parse(res.reply);
-                    // 💡 加入自製的大師級播放器 (這裡呼叫 'local' 快取播放)
+                    
                     let myAudioBtn = `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="playAudio(this, 'local', '${localBlobUrl}')">🎧 播放我的錄音</button>`;
                     document.getElementById(fbId).innerHTML = parsedHtml + myAudioBtn;
                     
@@ -797,7 +797,7 @@
           let wFbBox = document.getElementById('aiWordFeedback');
           if(currentQuizItem.aiWordFeedback) {
               wFbBox.style.display = 'block';
-              // 💡 切換單字時讀取紀錄，使用 'cloud' 中轉播放
+              // 💡 修復：將按鈕切換為 playAudio 中轉播放
               let myAudioBtn = currentQuizItem.aiWordAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="playAudio(this, 'cloud', '${currentQuizItem.aiWordAudioUrl}')">🎧 播放我的錄音</button>` : '';
               wFbBox.innerHTML = marked.parse(currentQuizItem.aiWordFeedback) + myAudioBtn;
           } else { wFbBox.style.display = 'none'; wFbBox.innerHTML = ''; }
@@ -805,7 +805,7 @@
           let eFbBox = document.getElementById('aiExampleFeedback');
           if(currentQuizItem.aiExampleFeedback) {
               eFbBox.style.display = 'block';
-              // 💡 切換單字時讀取紀錄，使用 'cloud' 中轉播放
+              // 💡 修復：將按鈕切換為 playAudio 中轉播放
               let myAudioBtn = currentQuizItem.aiExampleAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="playAudio(this, 'cloud', '${currentQuizItem.aiExampleAudioUrl}')">🎧 播放我的錄音</button>` : '';
               eFbBox.innerHTML = marked.parse(currentQuizItem.aiExampleFeedback) + myAudioBtn;
           } else { eFbBox.style.display = 'none'; eFbBox.innerHTML = ''; }
@@ -908,7 +908,6 @@
             
             let html = '';
             if(v.aiWordFeedback) {
-                // 💡 紀錄簿裡統一使用 'cloud' 雲端中轉播放
                 html += `<div style="margin-bottom:1rem;">
                             <div style="margin-bottom: 0.5rem;"><strong>單字診斷：</strong>
                                 <button class="speaker-btn" style="font-size:1rem;" onclick="speakText('${v.word}')">🔊 標準音</button>
@@ -919,7 +918,6 @@
             }
             if(v.aiExampleFeedback) {
                 let safeEx = (v.example ? v.example.replace(/\[|\]/g, '') : '').replace(/"/g, '&quot;');
-                // 💡 紀錄簿裡統一使用 'cloud' 雲端中轉播放
                 html += `<div>
                             <div style="margin-bottom: 0.5rem;"><strong>例句診斷：</strong>
                                 <button class="speaker-btn" style="font-size:1rem;" onclick="speakText(this.getAttribute('data-text'))" data-text="${safeEx}">🔊 標準音</button>
