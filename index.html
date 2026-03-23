@@ -601,7 +601,7 @@
         updateBackend(currentQuizItem.word, isCorrect, null, 'speaking', null, speakNextRev, bestSim);
         currentQuizItem.speakSimilarity = bestSim; 
         
-        // 💡 同步更新本地記憶體，讓看板即時變動！
+        // 💡 確保本地更新，讓看板即時變更
         updateGlobalProgressLocally(currentQuizItem.word, 'speaking', isCorrect, null, bestSim);
         
         document.getElementById('speakingPrevSim').innerText = "💡 剛剛發音相似度：" + bestSim + "%";
@@ -785,7 +785,7 @@
       let totalCorrect = 0, totalWrong = 0;
       let profCounts = { '熟練':0, '模糊':0, '完全忘記':0 };
       
-      // 💡 修正：預設顯示所有 4 個語言，即使該語言還沒有任何進度也會出現 `0` 和 `-`
+      // 💡 保底顯示四種語言
       let langStats = {
           '韓文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
           '英文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
@@ -794,8 +794,8 @@
       };
 
       globalProgressData.forEach(p => {
-          // 💡 修正：口說有成績也算作是有互動 (hasInteracted)
-          let hasInteracted = p.cCorrect>0 || p.cIncorrect>0 || p.sCorrect>0 || p.sIncorrect>0 || p.prof || (p.speakSimilarity !== undefined && p.speakSimilarity !== '');
+          // 💡 修正：加上 speakSimilarity 判斷
+          let hasInteracted = p.cCorrect>0 || p.cIncorrect>0 || p.sCorrect>0 || p.sIncorrect>0 || p.prof || (p.speakSimilarity !== undefined && p.speakSimilarity !== null && p.speakSimilarity !== '');
           if(hasInteracted) {
               totalLearned++;
               totalCorrect += (p.cCorrect + p.sCorrect);
@@ -899,7 +899,6 @@
           p.prof = profLevel;
       }
       
-      // 💡 確保口說分數被寫入本地記憶體，讓看板即時更新
       if (speakSim !== undefined && speakSim !== null) {
           p.speakSimilarity = speakSim;
       }
