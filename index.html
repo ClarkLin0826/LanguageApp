@@ -13,6 +13,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌎</text></svg>">
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   
   <style>
     :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg: #f3f4f6; --card-bg: #ffffff; --text: #1f2937; --text-light: #6b7280; --success: #10b981; --danger: #ef4444; --warn: #f59e0b; --premium: #8b5cf6;}
@@ -123,7 +124,6 @@
     .lang-table td { padding: 0.75rem; border-bottom: 1px solid #e5e7eb; color: var(--text); white-space: nowrap;}
     .lang-table tr:last-child td { border-bottom: none; }
 
-    /* 💡 新增：Toast 氣泡通知樣式 */
     #toast-container {
       position: fixed;
       bottom: 30px;
@@ -158,6 +158,16 @@
     .toast.info { background-color: var(--primary); }
     @keyframes toast-in { to { opacity: 1; transform: translateY(0); } }
     @keyframes toast-out { to { opacity: 0; transform: translateY(20px); } }
+
+    /* 💡 AI 家教版面樣式 */
+    .ai-chat-box { background: var(--bg); border-radius: 0.5rem; padding: 1.5rem; text-align: left; margin-bottom: 1.5rem; min-height: 150px; }
+    .ai-message { line-height: 1.6; color: var(--text); font-size: 0.95rem;}
+    .ai-message h1, .ai-message h2, .ai-message h3 { color: var(--premium); margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1.2rem;}
+    .ai-message strong { color: var(--primary); }
+    .ai-message ul { padding-left: 1.5rem; margin-top: 0.5rem; }
+    .ai-lock-screen { text-align: center; padding: 3rem 1rem; color: var(--text-light); }
+    .premium-btn { background-color: var(--premium); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: bold; cursor: pointer; transition: 0.2s;}
+    .premium-btn:hover { filter: brightness(0.9); }
 
     @media (max-width: 480px) {
       .section { padding: 1rem; }
@@ -248,6 +258,7 @@
       <button class="tab-btn" onclick="switchTab('choice')">選擇題</button>
       <button class="tab-btn" onclick="switchTab('spelling')">拼字題</button>
       <button class="tab-btn" onclick="switchTab('speaking')">🗣️ 口說</button>
+      <button class="tab-btn" style="color:var(--premium);" onclick="switchTab('ai_tutor')">🤖 AI 特訓</button>
     </nav>
 
     <main>
@@ -326,8 +337,7 @@
           
           <div class="chart-box" style="grid-column: 1 / -1; padding: 1.5rem; justify-content: flex-start;">
              <h4 style="color: var(--danger); margin-bottom: 1rem; margin-top:0;">🚫 口說永久黑名單</h4>
-             <div id="blacklistContainer" style="width: 100%; max-height: 200px; overflow-y: auto; text-align: left;">
-                </div>
+             <div id="blacklistContainer" style="width: 100%; max-height: 200px; overflow-y: auto; text-align: left;"></div>
           </div>
         </div>
       </div>
@@ -400,18 +410,15 @@
 
       <div id="speaking" class="section">
         <div class="vocab-card">
-          
           <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
             <button id="skipSpeakingBtn" class="btn btn-skip" style="display:none; padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0;" onclick="skipSpeaking()">🚫 永久略過口說</button>
           </div>
-          
           <div id="speakingTranslation" class="translation" style="margin-bottom:0.5rem;"></div>
           <div id="speakingPhonetic" class="phonetic"></div>
           <h2 class="word-title" style="margin-top: 1rem; font-size: 3rem; color: var(--primary);">
             <span id="speakingWord"></span>
             <button class="speaker-btn" onclick="speakText(document.getElementById('speakingWord').getAttribute('data-speak'))">🔊</button>
           </h2>
-          
           <div id="speakingPrevSim" style="color: var(--warn); font-size: 0.95rem; font-weight: bold; margin-top: 0.5rem; min-height: 1.2rem;"></div>
 
           <div style="margin: 2.5rem 0;">
@@ -420,10 +427,41 @@
           </div>
           <div id="recognizedText" style="color: var(--text-light); font-size: 1rem; margin-bottom: 1rem; min-height: 1.5rem;"></div>
           <div id="speakingFeedback" class="feedback"></div>
-          
-          <button id="aiTutorBtn" class="btn btn-primary" style="margin-top: 1.5rem; display: none;" onclick="callAITutor()">🤖 AI 家教點評</button>
-          
           <button id="speakingNextBtn" class="btn btn-primary" style="display:none;" onclick="nextQuizWord('speaking')">下一題</button>
+        </div>
+      </div>
+
+      <div id="ai_tutor" class="section">
+        <div class="vocab-card" id="aiAuthContainer">
+           </div>
+        
+        <div class="vocab-card" id="aiMainContainer" style="display: none;">
+          <h2 class="word-title" style="color: var(--premium);">
+            <span id="aiWord"></span>
+            <button class="speaker-btn" onclick="speakText(document.getElementById('aiWord').innerText)">🔊</button>
+          </h2>
+          <div id="aiTranslation" class="translation" style="font-size:1.2rem; color: var(--text-light); margin-bottom:0.5rem;"></div>
+          
+          <div class="example-box" style="background-color: #f5f3ff; border: 1px solid #ddd6fe;">
+            <p class="example-text" style="color: #4c1d95;">
+              <span id="aiExample"></span>
+              <button class="speaker-btn" onclick="speakText(document.getElementById('aiExample').innerText)">🔊</button>
+            </p>
+            <p id="aiExampleTrans" class="example-trans" style="border-top-color: #c4b5fd;"></p>
+          </div>
+
+          <div class="ai-chat-box" id="aiChatBox">
+            <div style="text-align:center; color: var(--text-light); margin-top: 2rem;">
+               ✨ 按下麥克風，唸出上面的「單字」與「例句」<br>AI 老師會為你進行深度發音診斷
+            </div>
+          </div>
+
+          <div style="margin: 1.5rem 0;">
+            <button id="aiMicBtn" class="mic-btn" style="background-color: #ede9fe; border-color: var(--premium);" onclick="toggleAIRecording()">🎙️</button>
+            <div id="aiRecordingStatus" style="color: var(--premium); font-weight: bold; font-size: 1rem; margin-top: 1rem; display: none;">AI 聆聽中...請朗讀單字與例句</div>
+          </div>
+          
+          <button class="btn btn-primary" style="background-color: var(--premium);" onclick="nextQuizWord('ai_tutor')">切換下一個單字</button>
         </div>
       </div>
     </main>
@@ -448,14 +486,12 @@
     var accuracyChartInstance = null;
     var profChartInstance = null;
 
-    // 💡 新增：Toast 提示系統核心邏輯
     function showToast(message, type = 'info') {
       let container = document.getElementById('toast-container');
       const toast = document.createElement('div');
       toast.className = `toast ${type}`;
       toast.innerText = message;
       container.appendChild(toast);
-
       setTimeout(() => { toast.remove(); }, 3000);
     }
 
@@ -589,12 +625,112 @@
       }
     }
 
+    // --------------------------------------------------------
+    // 💡 AI 家教核心邏輯 (MediaRecorder)
+    // --------------------------------------------------------
+    let aiMediaRecorder;
+    let aiAudioChunks = [];
+    let isRecordingAI = false;
+
+    async function toggleAIRecording() {
+        if (!isRecordingAI) {
+            try {
+                let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                aiMediaRecorder = new MediaRecorder(stream);
+                aiAudioChunks = [];
+                aiMediaRecorder.ondataavailable = e => aiAudioChunks.push(e.data);
+                aiMediaRecorder.onstop = processAIAudio;
+                aiMediaRecorder.start();
+                
+                isRecordingAI = true;
+                document.getElementById('aiMicBtn').classList.add('recording');
+                document.getElementById('aiRecordingStatus').style.display = 'block';
+                document.getElementById('aiChatBox').innerHTML = '<div style="text-align:center; color: var(--premium); margin-top: 2rem;">🎙️ 錄音中... (唸完請再按一次麥克風)</div>';
+            } catch (err) {
+                showToast("無法存取麥克風，請確認權限！", "danger");
+            }
+        } else {
+            aiMediaRecorder.stop();
+            isRecordingAI = false;
+            document.getElementById('aiMicBtn').classList.remove('recording');
+            document.getElementById('aiRecordingStatus').style.display = 'none';
+            document.getElementById('aiChatBox').innerHTML = '<div style="text-align:center; color: var(--text-light); margin-top: 2rem;"><div class="spinner" style="display:inline-block; border-top-color:var(--premium);"></div><br>傳送音檔給 AI 老師中...請稍候</div>';
+        }
+    }
+
+    function processAIAudio() {
+        let audioBlob = new Blob(aiAudioChunks, { type: aiMediaRecorder.mimeType });
+        let reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = function() {
+            let base64data = reader.result.split(',')[1];
+            let mimeType = audioBlob.type;
+            
+            // 呼叫後端 API，將 base64 音檔傳給 Gemini
+            apiCall('evaluateAudio', {
+                base64Audio: base64data,
+                mimeType: mimeType,
+                word: currentQuizItem.word,
+                example: document.getElementById('aiExample').innerText,
+                lang: currentSheetName,
+                userRole: userRole
+            }, function(res) {
+                if (res.success) {
+                    // 使用 marked.js 渲染 Markdown 回覆
+                    document.getElementById('aiChatBox').innerHTML = `<div class="ai-message">${marked.parse(res.reply)}</div>`;
+                } else {
+                    document.getElementById('aiChatBox').innerHTML = `<div style="color:var(--danger); text-align:center; margin-top:2rem;">❌ ${res.message}</div>`;
+                }
+            }, function(err) {
+                document.getElementById('aiChatBox').innerHTML = `<div style="color:var(--danger); text-align:center; margin-top:2rem;">❌ 連線失敗，請稍後再試</div>`;
+            });
+        }
+    }
+
+    function loadNextAITutor() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if(vocabData.length === 0) return;
+      currentQuizItem = vocabData[currentBrowseIndex]; 
+      updateProgressUI(); 
+
+      // 檢查 VIP 權限
+      let authBox = document.getElementById('aiAuthContainer');
+      let mainBox = document.getElementById('aiMainContainer');
+      
+      if (userRole === 'premium' || userRole === 'admin') {
+          authBox.style.display = 'none';
+          mainBox.style.display = 'block';
+          
+          document.getElementById('aiWord').innerText = formatWordDisplay(currentQuizItem);
+          document.getElementById('aiTranslation').innerText = currentQuizItem.translation;
+          
+          let displayExample = currentQuizItem.example ? currentQuizItem.example.replace(/\[|\]/g, '') : '無例句';
+          document.getElementById('aiExample').innerText = displayExample;
+          document.getElementById('aiExampleTrans').innerText = currentQuizItem.exampleTranslation || '';
+          
+          document.getElementById('aiChatBox').innerHTML = '<div style="text-align:center; color: var(--text-light); margin-top: 2rem;">✨ 按下麥克風，唸出上面的「單字」與「例句」<br>AI 老師會為你進行深度發音診斷</div>';
+      } else {
+          authBox.style.display = 'block';
+          mainBox.style.display = 'none';
+          authBox.innerHTML = `
+             <div class="ai-lock-screen">
+                <h1 style="font-size: 4rem; margin: 0;">🔒</h1>
+                <h2 style="color: var(--text);">專屬 AI 發音特訓班</h2>
+                <p style="margin-bottom: 2rem;">解鎖 Gemini 多模態語音辨識，獲得專屬情境與發音點評。</p>
+                <button class="premium-btn" onclick="showToast('請聯絡管理員升級為 Premium 帳號！🚀', 'warn')">升級 Premium 解鎖</button>
+             </div>
+          `;
+      }
+    }
+
+    // --------------------------------------------------------
+    // 原有的一般口說邏輯 (Web Speech API)
+    // --------------------------------------------------------
     function applySpeakingProficiency(item, sim) {
       let nextDate = new Date();
       if (sim < 60) nextDate.setMinutes(nextDate.getMinutes() + 10);
       else if (sim < 85) nextDate.setDate(nextDate.getDate() + 1);
       else nextDate.setDate(nextDate.getDate() + 5);
-
       item.speakNextReview = nextDate.toISOString();
       return item.speakNextReview;
     }
@@ -603,12 +739,10 @@
       if(!currentQuizItem) return;
       var farFuture = "2099-12-31T00:00:00.000Z";
       currentQuizItem.speakNextReview = farFuture;
-      
       let p = globalProgressData.find(item => item.word === currentQuizItem.word && item.lang === currentSheetName);
       if(p) p.speakNextReview = farFuture;
 
       updateBackend(currentQuizItem.word, true, null, 'speaking', null, farFuture, null);
-      
       showToast(`已將「${currentQuizItem.word}」永久排除口說！\n(可於看板恢復)`, "warn");
       nextQuizWord('speaking');
     }
@@ -642,13 +776,9 @@
             div.style.borderBottom = '1px solid #f3f4f6';
             div.style.padding = '0.5rem 0';
             div.innerHTML = `<span style="font-size: 0.95rem;"><b>${v.word}</b> (${v.translation})</span>
-                             <button class="btn-skip" style="font-size:0.8rem; padding:0.3rem 0.6rem;" onclick="restoreBlacklistWord('${v.word}')">恢復測驗</button>`;
+                             <button class="btn-skip" style="font-size:0.8rem; padding:0.3rem 0.6rem;" onclick="restoreBlacklistWord('${v.word}')">恢復</button>`;
             container.appendChild(div);
         });
-    }
-
-    function callAITutor() {
-       showToast("🤖 即將啟動 Gemini AI 語音點評功能！\n(正在建構專屬後端通道 🚀)", "info");
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -684,7 +814,6 @@
             bestSim >= 75);
 
         var feedback = document.getElementById('speakingFeedback');
-        
         let speakNextRev = applySpeakingProficiency(currentQuizItem, bestSim);
 
         if (isCorrect) {
@@ -705,7 +834,6 @@
         
         updateBackend(currentQuizItem.word, isCorrect, null, 'speaking', null, speakNextRev, bestSim);
         currentQuizItem.speakSimilarity = bestSim; 
-        
         updateGlobalProgressLocally(currentQuizItem.word, 'speaking', isCorrect, null, bestSim);
         
         document.getElementById('speakingPrevSim').innerText = "💡 剛剛發音相似度：" + bestSim + "%";
@@ -1100,6 +1228,7 @@
       else if(document.getElementById('choice').classList.contains('active')) loadNextChoice();
       else if(document.getElementById('spelling').classList.contains('active')) loadNextSpelling();
       else if(document.getElementById('speaking').classList.contains('active')) loadNextSpeaking();
+      else if(document.getElementById('ai_tutor').classList.contains('active')) loadNextAITutor();
     }
 
     function updateProgressUI() {
@@ -1161,7 +1290,7 @@
       let sortSelect = document.getElementById('sortSelect');
       let needsResort = false;
 
-      if (tabId === 'speaking') {
+      if (tabId === 'speaking' || tabId === 'ai_tutor') {
           if (sortSelect.value !== 'speakSm2') {
               sortSelect.value = 'speakSm2';
               needsResort = true;
@@ -1187,6 +1316,7 @@
       if (tabId === 'choice') loadNextChoice();
       if (tabId === 'spelling') loadNextSpelling();
       if (tabId === 'speaking') loadNextSpeaking(); 
+      if (tabId === 'ai_tutor') loadNextAITutor();
     }
 
     if (speechSynthesis.onvoiceschanged !== undefined) {
@@ -1234,6 +1364,7 @@
       if (tab === 'choice') loadNextChoice();
       if (tab === 'spelling') loadNextSpelling();
       if (tab === 'speaking') loadNextSpeaking();
+      if (tab === 'ai_tutor') loadNextAITutor();
     }
 
     function loadBrowseCard() {
@@ -1482,20 +1613,6 @@
          prevSimEl.innerText = "💡 上次發音相似度：" + currentQuizItem.speakSimilarity + "%";
       } else {
          prevSimEl.innerText = "";
-      }
-      
-      let aiBtn = document.getElementById('aiTutorBtn');
-      aiBtn.style.display = 'inline-block';
-      if(userRole === 'premium' || userRole === 'admin') {
-          aiBtn.innerText = '🤖 AI 家教點評';
-          aiBtn.style.backgroundColor = 'var(--premium)';
-          aiBtn.style.color = 'white';
-          aiBtn.onclick = callAITutor;
-      } else {
-          aiBtn.innerText = '🔒 AI 家教 (需 Premium)';
-          aiBtn.style.backgroundColor = '#e5e7eb';
-          aiBtn.style.color = 'var(--text-light)';
-          aiBtn.onclick = function() { showToast('🔒 此為 Premium 專屬功能，請聯絡管理員升級帳號！', 'warn'); };
       }
 
       document.getElementById('speakingFeedback').innerText = '';
