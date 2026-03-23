@@ -354,6 +354,9 @@
           <div id="speakingTranslation" class="translation" style="margin-bottom:0.5rem;"></div>
           <div id="speakingPhonetic" class="phonetic"></div>
           <h2 class="word-title" id="speakingWord" style="margin-top: 1rem; font-size: 3rem; color: var(--primary);"></h2>
+          
+          <div id="speakingPrevSim" style="color: var(--warn); font-size: 0.95rem; font-weight: bold; margin-top: 0.5rem; min-height: 1.2rem;"></div>
+
           <div style="margin: 2.5rem 0;">
             <button id="micBtn" class="mic-btn" onclick="toggleRecording()">🎙️</button>
             <div id="recordingStatus" style="color: var(--danger); font-weight: bold; font-size: 1rem; margin-top: 1rem; display: none;">錄音中...請唸出單字</div>
@@ -384,7 +387,6 @@
     var accuracyChartInstance = null;
     var profChartInstance = null;
 
-    // --- 💡 新增：萊文斯坦距離與模糊比對演算法 ---
     function levenshteinDistance(a, b) {
         if (a.length === 0) return b.length;
         if (b.length === 0) return a.length;
@@ -409,11 +411,10 @@
         if (maxLen === 0) return 100;
         return (1 - dist / maxLen) * 100;
     }
-    // ------------------------------------------
 
     function apiCall(action, payload, onSuccess, onError) {
       if (API_URL.includes("請把你的")) {
-         alert("請先在原始碼第 515 行替換你的 API_URL！");
+         alert("請先在原始碼第 516 行替換你的 API_URL！");
          return;
       }
       payload.action = action;
@@ -535,39 +536,46 @@
         var cleanTarget = targetWord.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\s]/g,"");
         var cleanKanji = currentQuizItem.kanji ? currentQuizItem.kanji.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\s]/g,"") : "";
 
-        // 💡 導入模糊比對判定
         var simWord = getSimilarity(cleanTranscript, cleanTarget);
         var simKanji = cleanKanji ? getSimilarity(cleanTranscript, cleanKanji) : 0;
-        var bestSim = Math.max(simWord, simKanji);
+        var bestSim = Math.round(Math.max(simWord, simKanji)); // 💡 取四捨五入的相似度
 
         var isCorrect = (cleanTranscript === cleanTarget || cleanTranscript.includes(cleanTarget) ||
             (cleanKanji !== "" && (cleanTranscript === cleanKanji || cleanTranscript.includes(cleanKanji))) ||
-            bestSim >= 75); // 容錯率設定為 75% 相似度以上給過
+            bestSim >= 75);
 
         var feedback = document.getElementById('speakingFeedback');
         let nextRev = '';
 
         if (isCorrect) {
           if (bestSim >= 75 && bestSim < 100 && !cleanTranscript.includes(cleanTarget) && (!cleanKanji || !cleanTranscript.includes(cleanKanji))) {
-             document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」 (相似度 " + Math.round(bestSim) + "%)";
-             feedback.innerText = '發音過關！👍';
+             document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
+             feedback.innerText = '發音過關！👍 (相似度 ' + bestSim + '%)';
           } else {
              document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
              feedback.innerText = '發音標準！💯';
+             bestSim = 100; // 完全正確視為 100%
           }
           feedback.className = 'feedback success';
           
           nextRev = applyQuizProficiency(currentQuizItem, '熟練');
-          updateBackend(currentQuizItem.word, true, null, 'speaking', '熟練', nextRev);
+          // 💡 更新：傳入 bestSim 作為口說相似度寫入資料庫
+          updateBackend(currentQuizItem.word, true, null, 'speaking', '熟練', nextRev, bestSim);
+          currentQuizItem.speakSimilarity = bestSim; // 即時更新前端狀態
 
         } else {
           document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
-          feedback.innerText = '發音不太對喔 (相似度 ' + Math.round(bestSim) + '%)，請再試一次！🤔';
+          feedback.innerText = '發音不太對喔 (相似度 ' + bestSim + '%)，請再按一次麥克風重試！🤔';
           feedback.className = 'feedback danger';
           
           nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
-          updateBackend(currentQuizItem.word, false, transcript, 'speaking', '完全忘記', nextRev);
+          updateBackend(currentQuizItem.word, false, transcript, 'speaking', '完全忘記', nextRev, bestSim);
+          currentQuizItem.speakSimilarity = bestSim;
         }
+        
+        // 💡 答題後即時更新上方的提示文字
+        document.getElementById('speakingPrevSim').innerText = "💡 上次發音相似度：" + bestSim + "%";
+        
         document.getElementById('speakingNextBtn').style.display = 'block';
         setTimeout(function() { document.getElementById('speakingNextBtn').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
       };
@@ -1260,6 +1268,14 @@
       document.getElementById('speakingPhonetic').innerHTML = renderPhoneticAndPos(currentQuizItem.phonetic, currentQuizItem.pos);
       document.getElementById('speakingWord').innerText = formatWordDisplay(currentQuizItem);
       
+      // 💡 新增：載入時顯示上一次的發音相似度
+      var prevSimEl = document.getElementById('speakingPrevSim');
+      if (currentQuizItem.speakSimilarity) {
+         prevSimEl.innerText = "💡 上次發音相似度：" + currentQuizItem.speakSimilarity + "%";
+      } else {
+         prevSimEl.innerText = "";
+      }
+
       document.getElementById('speakingFeedback').innerText = '';
       document.getElementById('recognizedText').innerText = '';
       document.getElementById('speakingNextBtn').style.display = 'none';
@@ -1269,7 +1285,8 @@
       setTimeout(function() { document.getElementById('speakingWord').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
     }
 
-    function updateBackend(word, isCorrect, userInput, testType, autoProfLevel, nextReviewISO) {
+    // 💡 確保這裡有接收 speakSimilarity 參數
+    function updateBackend(word, isCorrect, userInput, testType, autoProfLevel, nextReviewISO, speakSimilarity) {
       apiCall('updateTestResult', {
          sheetName: currentSheetName,
          word: word,
@@ -1278,7 +1295,8 @@
          testType: testType,
          username: currentUser,
          autoProfLevel: autoProfLevel,
-         nextReviewISO: nextReviewISO
+         nextReviewISO: nextReviewISO,
+         speakSimilarity: speakSimilarity
       });
     }
   </script>
