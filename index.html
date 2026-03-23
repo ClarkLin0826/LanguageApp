@@ -342,13 +342,19 @@
           <div id="browsePhonetic" class="phonetic"></div>
           
           <div id="browseTranslation" class="translation blur-text" onclick="revealText(this)"></div>
-          <div class="example-box">
+          <div class="example-box" style="margin-bottom: 1rem;">
             <p class="example-text">
               <span id="browseExample"></span>
               <button class="speaker-btn" onclick="speakText(document.getElementById('browseExample').innerText)">🔊</button>
             </p>
             <p id="browseExampleTrans" class="example-trans blur-text" onclick="revealText(this)"></p>
           </div>
+          
+          <div style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1.5rem;">
+             <button class="btn-skip" style="font-size: 0.85rem; color: var(--premium); border-color: var(--premium); flex:1;" onclick="getAITextAssistant('sentence')">🔄 AI 換情境</button>
+             <button class="btn-skip" style="font-size: 0.85rem; color: var(--premium); border-color: var(--premium); flex:1;" onclick="getAITextAssistant('mnemonic')">🆘 AI 記憶法</button>
+          </div>
+          <div id="aiMnemonicBox" class="ai-feedback-box" style="margin-bottom: 1.5rem; border-radius: 0.5rem; display:none;"></div>
 
           <div class="prof-container">
             <button class="prof-btn" id="prof-btn-1" onclick="setProficiency('完全忘記')">🤯 忘記 (10分)</button>
@@ -390,11 +396,18 @@
             </p>
             <p id="spellingExampleTrans" class="example-trans"></p>
           </div>
+          
           <input type="text" id="spellingInput" class="spelling-input" placeholder="請輸入單字..." autocomplete="off">
-          <div class="input-hint" id="spellingHint">💡 提示：請填寫單字原型 (字典型態)</div>
+          <div class="input-hint" id="spellingHint" style="margin-bottom:0.5rem;">💡 提示：請填寫單字原型 (字典型態)</div>
+          
+          <div style="text-align: right; margin-bottom: 1rem;">
+             <button class="btn-skip" style="font-size: 0.85rem; color: var(--premium); border-color: var(--premium);" onclick="getAITextAssistant('spelling_mnemonic')">🆘 忘記了？AI 救救我</button>
+          </div>
+          <div id="spellingMnemonicBox" class="ai-feedback-box" style="margin-bottom: 1.5rem; border-radius: 0.5rem; display:none;"></div>
+
           <button id="spellingSubmitBtn" class="btn btn-primary" onclick="checkSpelling()">送出答案 (Enter)</button>
-          <div id="spellingFeedback" class="feedback"></div>
-          <button id="spellingNextBtn" class="btn btn-primary" style="display:none;" onclick="nextQuizWord('spelling')">下一題 (Enter)</button>
+          <div id="spellingFeedback" class="feedback" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+          <button id="spellingNextBtn" class="btn btn-primary" style="display:none; margin-top: 1rem;" onclick="nextQuizWord('spelling')">下一題 (Enter)</button>
         </div>
       </div>
 
@@ -471,6 +484,59 @@
     var currentUser = '';
     var userRole = 'free'; 
     var isCurrentWordAnswered = false; 
+
+    // --------------------------------------------------------
+    // 💡 萬能 AI 文字助理引擎 (換情境、記憶法、抓漏)
+    // --------------------------------------------------------
+    function getAITextAssistant(taskType) {
+        if (userRole !== 'premium' && userRole !== 'admin') {
+            showToast('🔒 此為 Premium 專屬功能，請聯絡管理員升級！', 'warn');
+            return;
+        }
+
+        let word = currentQuizItem.word;
+        let lang = currentSheetName;
+        
+        if (taskType === 'sentence') {
+            let btn = document.querySelector(`button[onclick="getAITextAssistant('sentence')"]`);
+            let originalText = btn.innerText;
+            btn.innerText = "⏳ 思考中...";
+            btn.disabled = true;
+
+            apiCall('getAIAssistant', { taskType: 'sentence', word: word, lang: lang }, function(res) {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                if(res.success) {
+                    let reply = res.reply;
+                    let exMatch = reply.match(/【例句】(.*)/);
+                    let transMatch = reply.match(/【翻譯】(.*)/);
+                    if(exMatch) document.getElementById('browseExample').innerText = exMatch[1].trim();
+                    if(transMatch) {
+                        document.getElementById('browseExampleTrans').innerText = transMatch[1].trim();
+                        document.getElementById('browseExampleTrans').classList.remove('revealed');
+                    }
+                    showToast("✨ AI 已為你生成專屬例句！", "success");
+                } else {
+                    showToast(res.message, "danger");
+                }
+            }, function(err) {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                showToast("連線失敗", "danger");
+            });
+        } 
+        else if (taskType === 'mnemonic' || taskType === 'spelling_mnemonic') {
+            let boxId = taskType === 'mnemonic' ? 'aiMnemonicBox' : 'spellingMnemonicBox';
+            let box = document.getElementById(boxId);
+            box.style.display = 'block';
+            box.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 正在發功找記憶法...';
+            
+            apiCall('getAIAssistant', { taskType: 'mnemonic', word: word, lang: lang }, function(res) {
+                if(res.success) box.innerHTML = `💡 <b>AI 記憶法：</b><br>${marked.parse(res.reply)}`;
+                else box.innerHTML = `❌ ${res.message}`;
+            }, function(err) { box.innerHTML = `❌ 連線失敗`; });
+        }
+    }
 
     // --------------------------------------------------------
     // 💡 大師級音訊播放引擎 (本地快取 + 後端中轉)
@@ -745,7 +811,6 @@
                 if (res.success) {
                     let parsedHtml = marked.parse(res.reply);
                     
-                    // 💡 確保 AI 特訓當下錄完音，按鈕使用的是 playAudio
                     let myAudioBtn = `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="playAudio(this, 'local', '${localBlobUrl}')">🎧 播放我的錄音</button>`;
                     document.getElementById(fbId).innerHTML = parsedHtml + myAudioBtn;
                     
@@ -798,7 +863,6 @@
           let wFbBox = document.getElementById('aiWordFeedback');
           if(currentQuizItem.aiWordFeedback) {
               wFbBox.style.display = 'block';
-              // 💡 確保 AI 特訓切換單字時，讀取的是雲端歷史紀錄並使用 playAudio
               let myAudioBtn = currentQuizItem.aiWordAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="playAudio(this, 'cloud', '${currentQuizItem.aiWordAudioUrl}')">🎧 播放我的錄音</button>` : '';
               wFbBox.innerHTML = marked.parse(currentQuizItem.aiWordFeedback) + myAudioBtn;
           } else { wFbBox.style.display = 'none'; wFbBox.innerHTML = ''; }
@@ -806,7 +870,6 @@
           let eFbBox = document.getElementById('aiExampleFeedback');
           if(currentQuizItem.aiExampleFeedback) {
               eFbBox.style.display = 'block';
-              // 💡 確保 AI 特訓切換單字時，讀取的是雲端歷史紀錄並使用 playAudio
               let myAudioBtn = currentQuizItem.aiExampleAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="playAudio(this, 'cloud', '${currentQuizItem.aiExampleAudioUrl}')">🎧 播放我的錄音</button>` : '';
               eFbBox.innerHTML = marked.parse(currentQuizItem.aiExampleFeedback) + myAudioBtn;
           } else { eFbBox.style.display = 'none'; eFbBox.innerHTML = ''; }
@@ -909,7 +972,6 @@
             
             let html = '';
             if(v.aiWordFeedback) {
-                // 💡 確保歷史紀錄頁面使用的是 playAudio
                 html += `<div style="margin-bottom:1rem;">
                             <div style="margin-bottom: 0.5rem;"><strong>單字診斷：</strong>
                                 <button class="speaker-btn" style="font-size:1rem;" onclick="speakText('${v.word}')">🔊 標準音</button>
@@ -920,7 +982,6 @@
             }
             if(v.aiExampleFeedback) {
                 let safeEx = (v.example ? v.example.replace(/\[|\]/g, '') : '').replace(/"/g, '&quot;');
-                // 💡 確保歷史紀錄頁面使用的是 playAudio
                 html += `<div>
                             <div style="margin-bottom: 0.5rem;"><strong>例句診斷：</strong>
                                 <button class="speaker-btn" style="font-size:1rem;" onclick="speakText(this.getAttribute('data-text'))" data-text="${safeEx}">🔊 標準音</button>
@@ -1180,95 +1241,85 @@
           '泰文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 }
       };
 
-      globalProgressData.forEach(p => {
-          let hasInteracted = p.cCorrect>0 || p.cIncorrect>0 || p.sCorrect>0 || p.sIncorrect>0 || p.prof || (p.speakSimilarity !== undefined && p.speakSimilarity !== null && p.speakSimilarity !== '');
-          if(hasInteracted) {
-              totalLearned++;
-              totalCorrect += (p.cCorrect + p.sCorrect);
-              totalWrong += (p.cIncorrect + p.sIncorrect);
+      try {
+          globalProgressData.forEach(p => {
+              let hasInteracted = p.cCorrect>0 || p.cIncorrect>0 || p.sCorrect>0 || p.sIncorrect>0 || p.prof || (p.speakSimilarity !== undefined && p.speakSimilarity !== null && p.speakSimilarity !== '');
+              if(hasInteracted) {
+                  totalLearned++;
+                  totalCorrect += (p.cCorrect + p.sCorrect);
+                  totalWrong += (p.cIncorrect + p.sIncorrect);
 
-              if(p.prof === '熟練') profCounts['熟練']++;
-              else if(p.prof === '模糊') profCounts['模糊']++;
-              else if(p.prof === '完全忘記') profCounts['完全忘記']++;
+                  if(p.prof === '熟練') profCounts['熟練']++;
+                  else if(p.prof === '模糊') profCounts['模糊']++;
+                  else if(p.prof === '完全忘記') profCounts['完全忘記']++;
 
-              let l = p.lang || '未分類';
-              if(!langStats[l]) langStats[l] = { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 };
-              
-              langStats[l].count++;
-              langStats[l].correct += (p.cCorrect + p.sCorrect);
-              langStats[l].wrong += (p.cIncorrect + p.sIncorrect);
-              if(p.prof === '熟練') langStats[l].prof3++;
-              else if(p.prof === '模糊') langStats[l].prof2++;
-              else if(p.prof === '完全忘記') langStats[l].prof1++;
-              
-              if (p.speakSimilarity !== undefined && p.speakSimilarity !== null && p.speakSimilarity !== '') {
-                  let sim = Number(p.speakSimilarity);
-                  if(!isNaN(sim)) {
-                     langStats[l].speakSimSum += sim;
-                     langStats[l].speakSimCount++;
+                  let l = p.lang || '未分類';
+                  if(!langStats[l]) langStats[l] = { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 };
+                  
+                  langStats[l].count++;
+                  langStats[l].correct += (p.cCorrect + p.sCorrect);
+                  langStats[l].wrong += (p.cIncorrect + p.sIncorrect);
+                  if(p.prof === '熟練') langStats[l].prof3++;
+                  else if(p.prof === '模糊') langStats[l].prof2++;
+                  else if(p.prof === '完全忘記') langStats[l].prof1++;
+                  
+                  if (p.speakSimilarity !== undefined && p.speakSimilarity !== null && p.speakSimilarity !== '') {
+                      let sim = Number(p.speakSimilarity);
+                      if(!isNaN(sim)) {
+                         langStats[l].speakSimSum += sim;
+                         langStats[l].speakSimCount++;
+                      }
                   }
               }
+          });
+
+          document.getElementById('dashTotalWords').innerText = totalLearned;
+
+          let tbody = document.getElementById('dashLangTable');
+          tbody.innerHTML = '';
+          for (let lang in langStats) {
+             let st = langStats[lang];
+             let totalQs = st.correct + st.wrong;
+             let acc = totalQs > 0 ? Math.round((st.correct / totalQs) * 100) + '%' : '-';
+             let avgSpeak = st.speakSimCount > 0 ? Math.round(st.speakSimSum / st.speakSimCount) + '%' : '-';
+
+             let tr = document.createElement('tr');
+             tr.innerHTML = `
+                <td>${lang}</td>
+                <td style="font-weight:bold;">${st.count}</td>
+                <td>${acc}</td>
+                <td style="color:var(--primary); font-weight:bold;">${avgSpeak}</td>
+                <td style="color:var(--success); font-weight:bold;">${st.prof3}</td>
+                <td style="color:var(--warn); font-weight:bold;">${st.prof2}</td>
+                <td style="color:var(--danger); font-weight:bold;">${st.prof1}</td>
+             `;
+             tbody.appendChild(tr);
           }
-      });
 
-      document.getElementById('dashTotalWords').innerText = totalLearned;
+          let ctxAcc = document.getElementById('accuracyChart').getContext('2d');
+          if(accuracyChartInstance) accuracyChartInstance.destroy();
+          accuracyChartInstance = new Chart(ctxAcc, {
+              type: 'doughnut',
+              data: {
+                  labels: ['答對總數', '答錯總數'],
+                  datasets: [{ data: [totalCorrect, totalWrong], backgroundColor: ['#10b981', '#ef4444'] }]
+              },
+              options: { maintainAspectRatio: false, responsive: true, layout: { padding: 10 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } } }
+          });
 
-      let tbody = document.getElementById('dashLangTable');
-      tbody.innerHTML = '';
-      for (let lang in langStats) {
-         let st = langStats[lang];
-         let totalQs = st.correct + st.wrong;
-         let acc = totalQs > 0 ? Math.round((st.correct / totalQs) * 100) + '%' : '-';
-         let avgSpeak = st.speakSimCount > 0 ? Math.round(st.speakSimSum / st.speakSimCount) + '%' : '-';
-
-         let tr = document.createElement('tr');
-         tr.innerHTML = `
-            <td>${lang}</td>
-            <td style="font-weight:bold;">${st.count}</td>
-            <td>${acc}</td>
-            <td style="color:var(--primary); font-weight:bold;">${avgSpeak}</td>
-            <td style="color:var(--success); font-weight:bold;">${st.prof3}</td>
-            <td style="color:var(--warn); font-weight:bold;">${st.prof2}</td>
-            <td style="color:var(--danger); font-weight:bold;">${st.prof1}</td>
-         `;
-         tbody.appendChild(tr);
+          let ctxProf = document.getElementById('profChart').getContext('2d');
+          if(profChartInstance) profChartInstance.destroy();
+          profChartInstance = new Chart(ctxProf, {
+              type: 'pie',
+              data: {
+                  labels: ['熟練', '模糊', '忘記'],
+                  datasets: [{ data: [profCounts['熟練'], profCounts['模糊'], profCounts['完全忘記']], backgroundColor: ['#10b981', '#f59e0b', '#ef4444'] }]
+              },
+              options: { maintainAspectRatio: false, responsive: true, layout: { padding: 10 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } } }
+          });
+      } catch (e) {
+          console.error("Dashboard Render Error:", e);
       }
-
-      let ctxAcc = document.getElementById('accuracyChart').getContext('2d');
-      if(accuracyChartInstance) accuracyChartInstance.destroy();
-      accuracyChartInstance = new Chart(ctxAcc, {
-          type: 'doughnut',
-          data: {
-              labels: ['答對總數', '答錯總數'],
-              datasets: [{ data: [totalCorrect, totalWrong], backgroundColor: ['#10b981', '#ef4444'] }]
-          },
-          options: { 
-              maintainAspectRatio: false, 
-              responsive: true, 
-              layout: { padding: 10 },
-              plugins: { 
-                  legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } 
-              } 
-          }
-      });
-
-      let ctxProf = document.getElementById('profChart').getContext('2d');
-      if(profChartInstance) profChartInstance.destroy();
-      profChartInstance = new Chart(ctxProf, {
-          type: 'pie',
-          data: {
-              labels: ['熟練', '模糊', '忘記'],
-              datasets: [{ data: [profCounts['熟練'], profCounts['模糊'], profCounts['完全忘記']], backgroundColor: ['#10b981', '#f59e0b', '#ef4444'] }]
-          },
-          options: { 
-              maintainAspectRatio: false, 
-              responsive: true, 
-              layout: { padding: 10 },
-              plugins: { 
-                  legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } 
-              } 
-          }
-      });
     }
 
     function updateGlobalProgressLocally(word, type, isCorrect, profLevel, speakSim) {
@@ -1435,7 +1486,8 @@
       if(tabId === 'dashboard') {
          document.getElementById('globalControls').style.display = 'none';
          document.getElementById('globalProgress').style.display = 'none'; 
-         renderDashboard(); 
+         // 💡 確保圖表安全渲染
+         setTimeout(() => { renderDashboard(); }, 50);
          return;
       } 
       else if (tabId === 'records') {
@@ -1560,6 +1612,10 @@
       exTransEl.innerText = item.exampleTranslation || '';
       if(item.exampleTranslation) exTransEl.classList.remove('revealed');
       else exTransEl.classList.add('revealed'); 
+      
+      // 💡 隱藏並清空 AI 記憶法區塊
+      let mBox = document.getElementById('aiMnemonicBox');
+      mBox.style.display = 'none'; mBox.innerHTML = '';
       
       updateProficiencyUI(item.proficiency);
       updateProgressUI(); 
@@ -1694,6 +1750,10 @@
       if (window.innerWidth > 768) inputEl.focus(); 
       else inputEl.blur(); 
 
+      // 💡 重設 AI 區塊
+      document.getElementById('spellingMnemonicBox').style.display = 'none';
+      document.getElementById('spellingMnemonicBox').innerHTML = '';
+      
       document.getElementById('spellingFeedback').innerText = '';
       document.getElementById('spellingSubmitBtn').style.display = 'block';
       document.getElementById('spellingNextBtn').style.display = 'none';
@@ -1750,6 +1810,21 @@
         
         nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
         updateBackend(currentQuizItem.word, false, userInput, 'spelling', '完全忘記', nextRev); 
+        
+        // 💡 全自動：拼錯時呼叫 AI 抓漏 (Premium 專屬)
+        if (userRole === 'premium' || userRole === 'admin') {
+             let aiDiv = document.createElement('div');
+             aiDiv.style.marginTop = "0.8rem";
+             aiDiv.style.color = "var(--premium)";
+             aiDiv.style.fontSize = "0.95rem";
+             aiDiv.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 分析錯因中...';
+             feedback.appendChild(aiDiv);
+
+             apiCall('getAIAssistant', { taskType: 'spelling', word: currentQuizItem.word, lang: currentSheetName, extraInfo: userInput }, function(res) {
+                 if (res.success) aiDiv.innerHTML = `🤖 <b>AI 抓漏：</b> ${res.reply}`;
+                 else aiDiv.remove();
+             }, function(err) { aiDiv.remove(); });
+        }
       }
       document.getElementById('spellingNextBtn').style.display = 'block';
       if (window.innerWidth > 768) document.getElementById('spellingNextBtn').focus(); 
@@ -1784,20 +1859,6 @@
       if (isRecording && recognition) recognition.stop();
       if(document.getElementById('autoAudioCheck').checked) speakText(currentQuizItem.word);
       setTimeout(function() { document.getElementById('speakingWord').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
-    }
-
-    function updateBackend(word, isCorrect, userInput, testType, autoProfLevel, nextReviewISO, speakSimilarity) {
-      apiCall('updateTestResult', {
-         sheetName: currentSheetName,
-         word: word,
-         isCorrect: isCorrect,
-         userInput: userInput,
-         testType: testType,
-         username: currentUser,
-         autoProfLevel: autoProfLevel,
-         nextReviewISO: nextReviewISO,
-         speakSimilarity: speakSimilarity
-      });
     }
   </script>
 </body>
