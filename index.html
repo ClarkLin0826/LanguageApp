@@ -225,6 +225,7 @@
           <select id="sortSelect" class="sort-select" onchange="applySort()">
             <option value="sm2" selected>🧠 智能複習 (到期優先)</option>
             <option value="random">🎲 隨機 (打亂順序)</option>
+            <option value="speakSim">🗣️ 口說相似度 (最低優先)</option>
             <option value="default">依序 (表單由上到下)</option>
             <option value="proficiency">熟練度 (最不熟優先)</option>
             <option value="error">答錯率 (常錯優先)</option>
@@ -353,7 +354,10 @@
         <div class="vocab-card">
           <div id="speakingTranslation" class="translation" style="margin-bottom:0.5rem;"></div>
           <div id="speakingPhonetic" class="phonetic"></div>
-          <h2 class="word-title" id="speakingWord" style="margin-top: 1rem; font-size: 3rem; color: var(--primary);"></h2>
+          <h2 class="word-title" style="margin-top: 1rem; font-size: 3rem; color: var(--primary);">
+            <span id="speakingWord"></span>
+            <button class="speaker-btn" onclick="speakText(document.getElementById('speakingWord').getAttribute('data-speak'))">🔊</button>
+          </h2>
           
           <div id="speakingPrevSim" style="color: var(--warn); font-size: 0.95rem; font-weight: bold; margin-top: 0.5rem; min-height: 1.2rem;"></div>
 
@@ -414,7 +418,7 @@
 
     function apiCall(action, payload, onSuccess, onError) {
       if (API_URL.includes("請把你的")) {
-         alert("請先在原始碼第 516 行替換你的 API_URL！");
+         alert("請先在原始碼第 515 行替換你的 API_URL！");
          return;
       }
       payload.action = action;
@@ -538,14 +542,13 @@
 
         var simWord = getSimilarity(cleanTranscript, cleanTarget);
         var simKanji = cleanKanji ? getSimilarity(cleanTranscript, cleanKanji) : 0;
-        var bestSim = Math.round(Math.max(simWord, simKanji)); // 💡 取四捨五入的相似度
+        var bestSim = Math.round(Math.max(simWord, simKanji));
 
         var isCorrect = (cleanTranscript === cleanTarget || cleanTranscript.includes(cleanTarget) ||
             (cleanKanji !== "" && (cleanTranscript === cleanKanji || cleanTranscript.includes(cleanKanji))) ||
             bestSim >= 75);
 
         var feedback = document.getElementById('speakingFeedback');
-        let nextRev = '';
 
         if (isCorrect) {
           if (bestSim >= 75 && bestSim < 100 && !cleanTranscript.includes(cleanTarget) && (!cleanKanji || !cleanTranscript.includes(cleanKanji))) {
@@ -554,27 +557,25 @@
           } else {
              document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
              feedback.innerText = '發音標準！💯';
-             bestSim = 100; // 完全正確視為 100%
+             bestSim = 100; 
           }
           feedback.className = 'feedback success';
           
-          nextRev = applyQuizProficiency(currentQuizItem, '熟練');
-          // 💡 更新：傳入 bestSim 作為口說相似度寫入資料庫
-          updateBackend(currentQuizItem.word, true, null, 'speaking', '熟練', nextRev, bestSim);
-          currentQuizItem.speakSimilarity = bestSim; // 即時更新前端狀態
+          // 💡 更新：口說題完全不更新 prof (熟練度) 與 nextReviewISO
+          updateBackend(currentQuizItem.word, true, null, 'speaking', null, null, bestSim);
+          currentQuizItem.speakSimilarity = bestSim; 
 
         } else {
           document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
           feedback.innerText = '發音不太對喔 (相似度 ' + bestSim + '%)，請再按一次麥克風重試！🤔';
           feedback.className = 'feedback danger';
           
-          nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
-          updateBackend(currentQuizItem.word, false, transcript, 'speaking', '完全忘記', nextRev, bestSim);
+          // 💡 更新：口說題完全不更新 prof (熟練度) 與 nextReviewISO
+          updateBackend(currentQuizItem.word, false, transcript, 'speaking', null, null, bestSim);
           currentQuizItem.speakSimilarity = bestSim;
         }
         
-        // 💡 答題後即時更新上方的提示文字
-        document.getElementById('speakingPrevSim').innerText = "💡 上次發音相似度：" + bestSim + "%";
+        document.getElementById('speakingPrevSim').innerText = "💡 剛剛發音相似度：" + bestSim + "%";
         
         document.getElementById('speakingNextBtn').style.display = 'block';
         setTimeout(function() { document.getElementById('speakingNextBtn').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
@@ -897,7 +898,16 @@
           return 0; 
         };
         sortedData.sort((a, b) => getProfValue(a.proficiency) - getProfValue(b.proficiency));
-      } else if (sortType === 'error') {
+      } 
+      // 💡 新增：依口說相似度排序 (低分優先，未測驗的當作 -1 排最前面)
+      else if (sortType === 'speakSim') {
+        sortedData.sort(function(a, b) {
+          let simA = (a.speakSimilarity !== undefined && a.speakSimilarity !== null && a.speakSimilarity !== '') ? Number(a.speakSimilarity) : -1;
+          let simB = (b.speakSimilarity !== undefined && b.speakSimilarity !== null && b.speakSimilarity !== '') ? Number(b.speakSimilarity) : -1;
+          return simA - simB; 
+        });
+      }
+      else if (sortType === 'error') {
         sortedData.sort(function(a, b) {
           var scoreA = (a.choiceIncorrect + a.spellIncorrect) - (a.choiceCorrect + a.spellCorrect);
           var scoreB = (b.choiceIncorrect + b.spellIncorrect) - (b.choiceCorrect + b.spellCorrect);
@@ -1266,11 +1276,14 @@
       
       document.getElementById('speakingTranslation').innerText = currentQuizItem.translation;
       document.getElementById('speakingPhonetic').innerHTML = renderPhoneticAndPos(currentQuizItem.phonetic, currentQuizItem.pos);
-      document.getElementById('speakingWord').innerText = formatWordDisplay(currentQuizItem);
       
-      // 💡 新增：載入時顯示上一次的發音相似度
+      // 💡 確保單字與喇叭按鈕正確渲染
+      document.getElementById('speakingWord').innerText = formatWordDisplay(currentQuizItem);
+      document.getElementById('speakingWord').setAttribute('data-speak', currentQuizItem.word);
+      
+      // 💡 修正：嚴格檢查是否真的有被寫入過口說分數
       var prevSimEl = document.getElementById('speakingPrevSim');
-      if (currentQuizItem.speakSimilarity) {
+      if (currentQuizItem.speakSimilarity !== undefined && currentQuizItem.speakSimilarity !== null && currentQuizItem.speakSimilarity !== '') {
          prevSimEl.innerText = "💡 上次發音相似度：" + currentQuizItem.speakSimilarity + "%";
       } else {
          prevSimEl.innerText = "";
@@ -1285,7 +1298,6 @@
       setTimeout(function() { document.getElementById('speakingWord').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
     }
 
-    // 💡 確保這裡有接收 speakSimilarity 參數
     function updateBackend(word, isCorrect, userInput, testType, autoProfLevel, nextReviewISO, speakSimilarity) {
       apiCall('updateTestResult', {
          sheetName: currentSheetName,
