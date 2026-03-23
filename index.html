@@ -473,6 +473,10 @@
     // ⚠️ 記得把這裡換回你專屬的 Google API 網址 ⚠️
     const API_URL = "https://script.google.com/macros/s/AKfycbwfysuXE77bR2x8YuK2bRHL9aPKNyxj2zug2MXBO6Km0mZbamXbAzaF_oqZwEOCjzEdvQ/exec";
 
+    // 💡 補回不小心刪掉的圖表變數宣告
+    var accuracyChartInstance = null;
+    var profChartInstance = null;
+
     var allVocabData = []; 
     var vocabData = [];
     var globalProgressData = []; 
@@ -646,7 +650,7 @@
 
     function apiCall(action, payload, onSuccess, onError) {
       if (API_URL.includes("請把你的")) {
-         showToast("請先在原始碼第 603 行替換你的 API_URL！", "danger");
+         showToast("請先在原始碼第 605 行替換你的 API_URL！", "danger");
          return;
       }
       payload.action = action;
@@ -1502,7 +1506,6 @@
       if(tabId === 'dashboard') {
          document.getElementById('globalControls').style.display = 'none';
          document.getElementById('globalProgress').style.display = 'none'; 
-         // 💡 加長延遲時間，確保手機 DOM 已經展開完畢再畫圖
          setTimeout(() => { renderDashboard(); }, 150);
          return;
       } 
