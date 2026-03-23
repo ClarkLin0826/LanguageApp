@@ -125,32 +125,15 @@
     .lang-table tr:last-child td { border-bottom: none; }
 
     #toast-container {
-      position: fixed;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      z-index: 10000;
-      align-items: center;
-      pointer-events: none;
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; gap: 10px; z-index: 10000; align-items: center; pointer-events: none;
     }
     .toast {
-      background-color: #333;
-      color: #fff;
-      padding: 12px 24px;
-      border-radius: 999px;
-      font-size: 0.95rem;
-      font-weight: bold;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-      opacity: 0;
-      transform: translateY(20px);
+      background-color: #333; color: #fff; padding: 12px 24px; border-radius: 999px;
+      font-size: 0.95rem; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      opacity: 0; transform: translateY(20px);
       animation: toast-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, toast-out 0.3s forwards 2.5s;
-      white-space: pre-wrap;
-      text-align: center;
-      max-width: 90vw;
-      line-height: 1.4;
+      white-space: pre-wrap; text-align: center; max-width: 90vw; line-height: 1.4;
     }
     .toast.success { background-color: var(--success); }
     .toast.danger { background-color: var(--danger); }
@@ -159,15 +142,16 @@
     @keyframes toast-in { to { opacity: 1; transform: translateY(0); } }
     @keyframes toast-out { to { opacity: 0; transform: translateY(20px); } }
 
-    /* 💡 AI 家教版面樣式 */
-    .ai-chat-box { background: var(--bg); border-radius: 0.5rem; padding: 1.5rem; text-align: left; margin-bottom: 1.5rem; min-height: 150px; }
-    .ai-message { line-height: 1.6; color: var(--text); font-size: 0.95rem;}
-    .ai-message h1, .ai-message h2, .ai-message h3 { color: var(--premium); margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1.2rem;}
-    .ai-message strong { color: var(--primary); }
-    .ai-message ul { padding-left: 1.5rem; margin-top: 0.5rem; }
     .ai-lock-screen { text-align: center; padding: 3rem 1rem; color: var(--text-light); }
     .premium-btn { background-color: var(--premium); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: bold; cursor: pointer; transition: 0.2s;}
     .premium-btn:hover { filter: brightness(0.9); }
+    
+    /* 💡 AI 頁面專屬微型麥克風與反饋區塊 */
+    .ai-mini-mic { background-color: #ede9fe; color: var(--premium); border: 1px solid var(--premium); border-radius: 99px; padding: 0.3rem 0.8rem; font-size: 0.85rem; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem; transition: 0.2s; margin-left: 0.5rem; }
+    .ai-mini-mic:hover { background-color: var(--premium); color: white; }
+    .ai-mini-mic.recording { animation: pulse 1s infinite; background-color: var(--danger); color: white; border-color: var(--danger); }
+    .ai-feedback-box { text-align: left; background: #fdfcff; border-left: 4px solid var(--premium); padding: 0.8rem; margin-top: 0.5rem; border-radius: 0 0.5rem 0.5rem 0; font-size: 0.95rem; color: #4c1d95; display: none; }
+    .ai-item-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.5rem;}
 
     @media (max-width: 480px) {
       .section { padding: 1rem; }
@@ -432,33 +416,34 @@
       </div>
 
       <div id="ai_tutor" class="section">
-        <div class="vocab-card" id="aiAuthContainer">
-           </div>
+        <div class="vocab-card" id="aiAuthContainer"></div>
         
         <div class="vocab-card" id="aiMainContainer" style="display: none;">
-          <h2 class="word-title" style="color: var(--premium);">
-            <span id="aiWord"></span>
-            <button class="speaker-btn" onclick="speakText(document.getElementById('aiWord').innerText)">🔊</button>
-          </h2>
           <div id="aiTranslation" class="translation" style="font-size:1.2rem; color: var(--text-light); margin-bottom:0.5rem;"></div>
           
-          <div class="example-box" style="background-color: #f5f3ff; border: 1px solid #ddd6fe;">
-            <p class="example-text" style="color: #4c1d95;">
-              <span id="aiExample"></span>
-              <button class="speaker-btn" onclick="speakText(document.getElementById('aiExample').innerText)">🔊</button>
-            </p>
-            <p id="aiExampleTrans" class="example-trans" style="border-top-color: #c4b5fd;"></p>
+          <div style="margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px dashed #e5e7eb;">
+             <div class="ai-item-row">
+                 <h2 class="word-title" style="color: var(--premium); margin:0;">
+                    <span id="aiWord"></span>
+                    <button class="speaker-btn" onclick="speakText(document.getElementById('aiWord').innerText)">🔊</button>
+                 </h2>
+                 <button id="aiMicWordBtn" class="ai-mini-mic" onclick="toggleAIRecording('word')">🎙️ 測驗單字</button>
+             </div>
+             <div id="aiWordFeedback" class="ai-feedback-box"></div>
           </div>
-
-          <div class="ai-chat-box" id="aiChatBox">
-            <div style="text-align:center; color: var(--text-light); margin-top: 2rem;">
-               ✨ 按下麥克風，唸出上面的「單字」與「例句」<br>AI 老師會為你進行深度發音診斷
-            </div>
-          </div>
-
-          <div style="margin: 1.5rem 0;">
-            <button id="aiMicBtn" class="mic-btn" style="background-color: #ede9fe; border-color: var(--premium);" onclick="toggleAIRecording()">🎙️</button>
-            <div id="aiRecordingStatus" style="color: var(--premium); font-weight: bold; font-size: 1rem; margin-top: 1rem; display: none;">AI 聆聽中...請朗讀單字與例句</div>
+          
+          <div style="margin-bottom: 2rem;">
+             <div class="example-box" style="background-color: #f5f3ff; border: 1px solid #ddd6fe; margin-bottom: 0.5rem;">
+                <p class="example-text" style="color: #4c1d95;">
+                  <span id="aiExample"></span>
+                  <button class="speaker-btn" onclick="speakText(document.getElementById('aiExample').innerText)">🔊</button>
+                </p>
+                <p id="aiExampleTrans" class="example-trans" style="border-top-color: #c4b5fd;"></p>
+             </div>
+             <div style="text-align: right;">
+                <button id="aiMicExampleBtn" class="ai-mini-mic" onclick="toggleAIRecording('example')">🎙️ 測驗例句</button>
+             </div>
+             <div id="aiExampleFeedback" class="ai-feedback-box"></div>
           </div>
           
           <button class="btn btn-primary" style="background-color: var(--premium);" onclick="nextQuizWord('ai_tutor')">切換下一個單字</button>
@@ -626,35 +611,50 @@
     }
 
     // --------------------------------------------------------
-    // 💡 AI 家教核心邏輯 (MediaRecorder)
+    // 💡 全新：雙微型麥克風 AI 評測邏輯
     // --------------------------------------------------------
     let aiMediaRecorder;
     let aiAudioChunks = [];
     let isRecordingAI = false;
+    let currentAITarget = ''; // 'word' 或 'example'
 
-    async function toggleAIRecording() {
+    async function toggleAIRecording(targetType) {
         if (!isRecordingAI) {
             try {
                 let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 aiMediaRecorder = new MediaRecorder(stream);
                 aiAudioChunks = [];
+                currentAITarget = targetType;
+                
                 aiMediaRecorder.ondataavailable = e => aiAudioChunks.push(e.data);
                 aiMediaRecorder.onstop = processAIAudio;
                 aiMediaRecorder.start();
                 
                 isRecordingAI = true;
-                document.getElementById('aiMicBtn').classList.add('recording');
-                document.getElementById('aiRecordingStatus').style.display = 'block';
-                document.getElementById('aiChatBox').innerHTML = '<div style="text-align:center; color: var(--premium); margin-top: 2rem;">🎙️ 錄音中... (唸完請再按一次麥克風)</div>';
+                let btnId = targetType === 'word' ? 'aiMicWordBtn' : 'aiMicExampleBtn';
+                let fbId = targetType === 'word' ? 'aiWordFeedback' : 'aiExampleFeedback';
+                
+                document.getElementById(btnId).classList.add('recording');
+                document.getElementById(btnId).innerText = "⏹️ 停止錄音";
+                
+                let fbBox = document.getElementById(fbId);
+                fbBox.style.display = 'block';
+                fbBox.innerHTML = '<span style="color:var(--danger); animation: pulse 1s infinite;">🎙️ 錄音中... 唸完請點擊停止</span>';
             } catch (err) {
                 showToast("無法存取麥克風，請確認權限！", "danger");
             }
         } else {
             aiMediaRecorder.stop();
             isRecordingAI = false;
-            document.getElementById('aiMicBtn').classList.remove('recording');
-            document.getElementById('aiRecordingStatus').style.display = 'none';
-            document.getElementById('aiChatBox').innerHTML = '<div style="text-align:center; color: var(--text-light); margin-top: 2rem;"><div class="spinner" style="display:inline-block; border-top-color:var(--premium);"></div><br>傳送音檔給 AI 老師中...請稍候</div>';
+            
+            let btnId = currentAITarget === 'word' ? 'aiMicWordBtn' : 'aiMicExampleBtn';
+            let fbId = currentAITarget === 'word' ? 'aiWordFeedback' : 'aiExampleFeedback';
+            let btnText = currentAITarget === 'word' ? '🎙️ 測驗單字' : '🎙️ 測驗例句';
+            
+            document.getElementById(btnId).classList.remove('recording');
+            document.getElementById(btnId).innerText = btnText;
+            
+            document.getElementById(fbId).innerHTML = '<div class="spinner" style="display:inline-block; border-top-color:var(--premium); width:20px; height:20px;"></div> AI 分析中...';
         }
     }
 
@@ -662,27 +662,43 @@
         let audioBlob = new Blob(aiAudioChunks, { type: aiMediaRecorder.mimeType });
         let reader = new FileReader();
         reader.readAsDataURL(audioBlob);
+        let activeTarget = currentAITarget; 
+        
         reader.onloadend = function() {
             let base64data = reader.result.split(',')[1];
-            let mimeType = audioBlob.type;
             
-            // 呼叫後端 API，將 base64 音檔傳給 Gemini
             apiCall('evaluateAudio', {
                 base64Audio: base64data,
-                mimeType: mimeType,
+                mimeType: audioBlob.type,
                 word: currentQuizItem.word,
                 example: document.getElementById('aiExample').innerText,
                 lang: currentSheetName,
-                userRole: userRole
+                userRole: userRole,
+                targetType: activeTarget
             }, function(res) {
+                let fbId = activeTarget === 'word' ? 'aiWordFeedback' : 'aiExampleFeedback';
                 if (res.success) {
-                    // 使用 marked.js 渲染 Markdown 回覆
-                    document.getElementById('aiChatBox').innerHTML = `<div class="ai-message">${marked.parse(res.reply)}</div>`;
+                    let parsedHtml = marked.parse(res.reply);
+                    document.getElementById(fbId).innerHTML = parsedHtml;
+                    
+                    // 💡 儲存至全域變數與 Google Sheet
+                    if(activeTarget === 'word') currentQuizItem.aiWordFeedback = res.reply;
+                    else currentQuizItem.aiExampleFeedback = res.reply;
+                    
+                    let p = globalProgressData.find(v => v.word === currentQuizItem.word && v.lang === currentSheetName);
+                    if(p) {
+                        if(activeTarget === 'word') p.aiWordFeedback = res.reply;
+                        else p.aiExampleFeedback = res.reply;
+                    }
+                    
+                    apiCall('saveAIFeedback', { sheetName: currentSheetName, word: currentQuizItem.word, username: currentUser, targetType: activeTarget, feedback: res.reply });
+                    
                 } else {
-                    document.getElementById('aiChatBox').innerHTML = `<div style="color:var(--danger); text-align:center; margin-top:2rem;">❌ ${res.message}</div>`;
+                    document.getElementById(fbId).innerHTML = `<span style="color:var(--danger);">❌ ${res.message}</span>`;
                 }
             }, function(err) {
-                document.getElementById('aiChatBox').innerHTML = `<div style="color:var(--danger); text-align:center; margin-top:2rem;">❌ 連線失敗，請稍後再試</div>`;
+                let fbId = activeTarget === 'word' ? 'aiWordFeedback' : 'aiExampleFeedback';
+                document.getElementById(fbId).innerHTML = `<span style="color:var(--danger);">❌ 連線失敗，請重試</span>`;
             });
         }
     }
@@ -693,7 +709,6 @@
       currentQuizItem = vocabData[currentBrowseIndex]; 
       updateProgressUI(); 
 
-      // 檢查 VIP 權限
       let authBox = document.getElementById('aiAuthContainer');
       let mainBox = document.getElementById('aiMainContainer');
       
@@ -708,15 +723,27 @@
           document.getElementById('aiExample').innerText = displayExample;
           document.getElementById('aiExampleTrans').innerText = currentQuizItem.exampleTranslation || '';
           
-          document.getElementById('aiChatBox').innerHTML = '<div style="text-align:center; color: var(--text-light); margin-top: 2rem;">✨ 按下麥克風，唸出上面的「單字」與「例句」<br>AI 老師會為你進行深度發音診斷</div>';
+          // 💡 載入歷史診斷紀錄
+          let wFbBox = document.getElementById('aiWordFeedback');
+          if(currentQuizItem.aiWordFeedback) {
+              wFbBox.style.display = 'block';
+              wFbBox.innerHTML = marked.parse(currentQuizItem.aiWordFeedback);
+          } else { wFbBox.style.display = 'none'; wFbBox.innerHTML = ''; }
+          
+          let eFbBox = document.getElementById('aiExampleFeedback');
+          if(currentQuizItem.aiExampleFeedback) {
+              eFbBox.style.display = 'block';
+              eFbBox.innerHTML = marked.parse(currentQuizItem.aiExampleFeedback);
+          } else { eFbBox.style.display = 'none'; eFbBox.innerHTML = ''; }
+
       } else {
           authBox.style.display = 'block';
           mainBox.style.display = 'none';
           authBox.innerHTML = `
              <div class="ai-lock-screen">
                 <h1 style="font-size: 4rem; margin: 0;">🔒</h1>
-                <h2 style="color: var(--text);">專屬 AI 發音特訓班</h2>
-                <p style="margin-bottom: 2rem;">解鎖 Gemini 多模態語音辨識，獲得專屬情境與發音點評。</p>
+                <h2 style="color: var(--text);">專屬 AI 發音特診室</h2>
+                <p style="margin-bottom: 2rem;">升級解鎖 Gemini 語音點評，自動記錄你的發音弱點！</p>
                 <button class="premium-btn" onclick="showToast('請聯絡管理員升級為 Premium 帳號！🚀', 'warn')">升級 Premium 解鎖</button>
              </div>
           `;
@@ -1120,7 +1147,7 @@
     function updateGlobalProgressLocally(word, type, isCorrect, profLevel, speakSim) {
       let p = globalProgressData.find(item => item.word === word && item.lang === currentSheetName);
       if (!p) {
-          p = { lang: currentSheetName, word: word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '' };
+          p = { lang: currentSheetName, word: word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '', aiWordFeedback: '', aiExampleFeedback: '' };
           globalProgressData.push(p);
       }
       if (type === 'choice') {
