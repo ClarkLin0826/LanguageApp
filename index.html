@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌎</text></svg>">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌎</text></svg>">
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   
   <style>
@@ -1306,7 +1306,6 @@
           let ctxAcc = document.getElementById('accuracyChart').getContext('2d');
           if(accuracyChartInstance) accuracyChartInstance.destroy();
           
-          // 💡 防呆：如果全錯全對都是0，給個灰色的環
           let accData = (totalCorrect === 0 && totalWrong === 0) ? [0.01, 0] : [totalCorrect, totalWrong];
           let accColors = (totalCorrect === 0 && totalWrong === 0) ? ['#e5e7eb', '#e5e7eb'] : ['#10b981', '#ef4444'];
           
@@ -1597,7 +1596,6 @@
       isCurrentWordAnswered = false; 
       
       if(vocabData.length === 0) {
-         // ... (全數完成提示) ...
          return;
       }
 
@@ -1890,6 +1888,36 @@
       document.getElementById('spellingNextBtn').style.display = 'block';
       if (window.innerWidth > 768) document.getElementById('spellingNextBtn').focus(); 
       setTimeout(function() { document.getElementById('spellingNextBtn').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
+    }
+
+    function loadNextSpeaking() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if(vocabData.length === 0) return;
+
+      isCurrentWordAnswered = false; 
+      currentQuizItem = vocabData[currentBrowseIndex]; 
+      updateProgressUI(); 
+      
+      document.getElementById('speakingTranslation').innerText = currentQuizItem.translation;
+      document.getElementById('speakingPhonetic').innerHTML = renderPhoneticAndPos(currentQuizItem.phonetic, currentQuizItem.pos);
+      document.getElementById('speakingWord').innerText = formatWordDisplay(currentQuizItem);
+      document.getElementById('speakingWord').setAttribute('data-speak', currentQuizItem.word);
+      
+      var prevSimEl = document.getElementById('speakingPrevSim');
+      if (currentQuizItem.speakSimilarity !== undefined && currentQuizItem.speakSimilarity !== null && currentQuizItem.speakSimilarity !== '') {
+         prevSimEl.innerText = "💡 上次發音相似度：" + currentQuizItem.speakSimilarity + "%";
+      } else {
+         prevSimEl.innerText = "";
+      }
+
+      document.getElementById('speakingFeedback').innerText = '';
+      document.getElementById('recognizedText').innerText = '';
+      document.getElementById('speakingNextBtn').style.display = 'none';
+      document.getElementById('skipSpeakingBtn').style.display = 'inline-block'; 
+      
+      if (isRecording && recognition) recognition.stop();
+      if(document.getElementById('autoAudioCheck').checked) speakText(currentQuizItem.word);
+      setTimeout(function() { document.getElementById('speakingWord').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
     }
   </script>
 </body>
