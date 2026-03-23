@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌎</text></svg>">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌎</text></svg>">
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   
   <style>
@@ -1236,6 +1236,7 @@
       switchTab('browse');
     }
 
+    // 💡 圖表修復：加上了安全數值 [1] 與 [1] 的防呆設計
     function renderDashboard() {
       let totalLearned = 0;
       let totalCorrect = 0, totalWrong = 0;
@@ -1306,13 +1307,14 @@
           let ctxAcc = document.getElementById('accuracyChart').getContext('2d');
           if(accuracyChartInstance) accuracyChartInstance.destroy();
           
-          let accData = (totalCorrect === 0 && totalWrong === 0) ? [0.01, 0] : [totalCorrect, totalWrong];
-          let accColors = (totalCorrect === 0 && totalWrong === 0) ? ['#e5e7eb', '#e5e7eb'] : ['#10b981', '#ef4444'];
+          let accData = (totalCorrect === 0 && totalWrong === 0) ? [1] : [totalCorrect, totalWrong];
+          let accColors = (totalCorrect === 0 && totalWrong === 0) ? ['#e5e7eb'] : ['#10b981', '#ef4444'];
+          let accLabels = (totalCorrect === 0 && totalWrong === 0) ? ['無測驗紀錄'] : ['答對總數', '答錯總數'];
           
           accuracyChartInstance = new Chart(ctxAcc, {
               type: 'doughnut',
               data: {
-                  labels: ['答對總數', '答錯總數'],
+                  labels: accLabels,
                   datasets: [{ data: accData, backgroundColor: accColors }]
               },
               options: { maintainAspectRatio: false, responsive: true, layout: { padding: 10 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } } }
@@ -1321,18 +1323,19 @@
           let ctxProf = document.getElementById('profChart').getContext('2d');
           if(profChartInstance) profChartInstance.destroy();
           
-          let pData = (profCounts['熟練']===0 && profCounts['模糊']===0 && profCounts['完全忘記']===0) ? [0.01,0,0] : [profCounts['熟練'], profCounts['模糊'], profCounts['完全忘記']];
-          let pColors = (profCounts['熟練']===0 && profCounts['模糊']===0 && profCounts['完全忘記']===0) ? ['#e5e7eb','#e5e7eb','#e5e7eb'] : ['#10b981', '#f59e0b', '#ef4444'];
+          let pData = (profCounts['熟練']===0 && profCounts['模糊']===0 && profCounts['完全忘記']===0) ? [1] : [profCounts['熟練'], profCounts['模糊'], profCounts['完全忘記']];
+          let pColors = (profCounts['熟練']===0 && profCounts['模糊']===0 && profCounts['完全忘記']===0) ? ['#e5e7eb'] : ['#10b981', '#f59e0b', '#ef4444'];
+          let pLabels = (profCounts['熟練']===0 && profCounts['模糊']===0 && profCounts['完全忘記']===0) ? ['無熟練度紀錄'] : ['熟練', '模糊', '忘記'];
 
           profChartInstance = new Chart(ctxProf, {
               type: 'pie',
               data: {
-                  labels: ['熟練', '模糊', '忘記'],
+                  labels: pLabels,
                   datasets: [{ data: pData, backgroundColor: pColors }]
               },
               options: { maintainAspectRatio: false, responsive: true, layout: { padding: 10 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } } }
           });
-      } catch (e) { console.error("Dashboard Render Error:", e); }
+      } catch (e) { console.error("Dashboard Render Error:", e); alert("圖表載入發生錯誤：" + e.message); }
     }
 
     function updateGlobalProgressLocally(word, type, isCorrect, profLevel, speakSim) {
@@ -1499,7 +1502,8 @@
       if(tabId === 'dashboard') {
          document.getElementById('globalControls').style.display = 'none';
          document.getElementById('globalProgress').style.display = 'none'; 
-         setTimeout(() => { renderDashboard(); }, 50);
+         // 💡 加長延遲時間，確保手機 DOM 已經展開完畢再畫圖
+         setTimeout(() => { renderDashboard(); }, 150);
          return;
       } 
       else if (tabId === 'records') {
