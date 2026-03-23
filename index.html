@@ -80,6 +80,9 @@
     .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 0.5rem; cursor: pointer; font-size: 1rem; font-weight: bold; transition: opacity 0.2s; width: 100%; margin-top: 0.5rem; }
     .btn-primary { background-color: var(--primary); color: white; }
     .btn-primary:hover { background-color: var(--primary-hover); }
+    .btn-skip { background-color: transparent; color: var(--text-light); border: 1px solid #d1d5db; padding: 0.5rem 1rem; font-size: 0.9rem;}
+    .btn-skip:hover { background-color: #f3f4f6; color: var(--text); }
+    
     .speaker-btn { background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 0.2rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; transition: background-color 0.2s; }
     .speaker-btn:hover { background-color: #e5e7eb; }
     
@@ -111,13 +114,14 @@
 
     .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
     .chart-box { background: var(--bg); padding: 1.5rem; border-radius: 1rem; display: flex; flex-direction: column; align-items: center;}
-    .chart-box h4 { margin-top: 0; color: var(--text-light); text-align: center; margin-bottom: 1rem; }
-    .chart-container { position: relative; height: 220px; width: 100%; display: flex; justify-content: center; } 
+    .chart-box h4 { margin-top: 0; color: var(--text-light); text-align: center; margin-bottom: 1rem; width: 100%;}
+    /* 💡 修正：圖表容器樣式優化，解決手機版擠壓變形問題 */
+    .chart-container { position: relative; height: 260px; width: 100%; max-width: 300px; margin: 0 auto;} 
 
     .lang-table-container { overflow-x: auto; margin-bottom: 2rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; }
     .lang-table { width: 100%; border-collapse: collapse; text-align: center; font-size: 0.9rem; }
     .lang-table th { background: var(--primary); color: white; padding: 0.75rem; font-weight: bold; white-space: nowrap;}
-    .lang-table td { padding: 0.75rem; border-bottom: 1px solid #e5e7eb; color: var(--text); }
+    .lang-table td { padding: 0.75rem; border-bottom: 1px solid #e5e7eb; color: var(--text); white-space: nowrap;}
     .lang-table tr:last-child td { border-bottom: none; }
 
     @media (max-width: 480px) {
@@ -130,7 +134,7 @@
       .example-box { padding: 0.75rem; margin-bottom: 1rem; }
       .spelling-input { padding: 0.75rem; font-size: 1.2rem; margin: 1rem 0 0.5rem 0; }
       .dashboard-grid { grid-template-columns: 1fr; gap: 1rem; }
-      .chart-container { height: 200px; }
+      .chart-container { height: 220px; max-width: 100%;}
     }
   </style>
 </head>
@@ -225,7 +229,7 @@
           <select id="sortSelect" class="sort-select" onchange="applySort()">
             <option value="sm2" selected>🧠 智能複習 (單字到期優先)</option>
             <option value="random">🎲 隨機 (打亂順序)</option>
-            <option value="speakSm2">🗣️ 口說智能複習 (發音到期優先)</option>
+            <option value="speakSm2">🗣️ 智能口說複習 (發音到期優先)</option>
             <option value="default">依序 (表單由上到下)</option>
             <option value="proficiency">熟練度 (最不熟優先)</option>
             <option value="error">答錯率 (常錯優先)</option>
@@ -259,6 +263,7 @@
                     <th>語言</th>
                     <th>已學</th>
                     <th>正確率</th>
+                    <th>🗣️平均口說</th>
                     <th>😎熟練</th>
                     <th>🤔模糊</th>
                     <th>🤯忘記</th>
@@ -367,6 +372,9 @@
           </div>
           <div id="recognizedText" style="color: var(--text-light); font-size: 1rem; margin-bottom: 1rem; min-height: 1.5rem;"></div>
           <div id="speakingFeedback" class="feedback"></div>
+          
+          <button id="skipSpeakingBtn" class="btn btn-skip" style="display:none;" onclick="skipSpeaking()">🚫 太簡單/不適合口說 (永久略過)</button>
+          
           <button id="speakingNextBtn" class="btn btn-primary" style="display:none;" onclick="nextQuizWord('speaking')">下一題</button>
         </div>
       </div>
@@ -418,7 +426,7 @@
 
     function apiCall(action, payload, onSuccess, onError) {
       if (API_URL.includes("請把你的")) {
-         alert("請先在原始碼第 513 行替換你的 API_URL！");
+         alert("請先在原始碼第 528 行替換你的 API_URL！");
          return;
       }
       payload.action = action;
@@ -516,7 +524,6 @@
       }
     }
 
-    // 💡 新增口說專屬時間演算法
     function applySpeakingProficiency(item, sim) {
       let nextDate = new Date();
       if (sim < 60) nextDate.setMinutes(nextDate.getMinutes() + 10);
@@ -525,6 +532,18 @@
 
       item.speakNextReview = nextDate.toISOString();
       return item.speakNextReview;
+    }
+
+    // 💡 新增：略過口說功能 (寫入 2099 年)
+    function skipSpeaking() {
+      if(!currentQuizItem) return;
+      var farFuture = "2099-12-31T00:00:00.000Z";
+      currentQuizItem.speakNextReview = farFuture;
+      
+      updateBackend(currentQuizItem.word, true, null, 'speaking', null, farFuture, null);
+      
+      alert("已將「" + currentQuizItem.word + "」從口說智能複習中永久排除！");
+      nextQuizWord('speaking');
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -561,7 +580,6 @@
 
         var feedback = document.getElementById('speakingFeedback');
         
-        // 💡 取得專屬的口說延遲時間
         let speakNextRev = applySpeakingProficiency(currentQuizItem, bestSim);
 
         if (isCorrect) {
@@ -580,7 +598,6 @@
           feedback.className = 'feedback danger';
         }
         
-        // 💡 不再改變 general prof，改傳 speakNextRev 給後端 (寫入 L 欄)
         updateBackend(currentQuizItem.word, isCorrect, null, 'speaking', null, speakNextRev, bestSim);
         currentQuizItem.speakSimilarity = bestSim; 
         
@@ -778,7 +795,7 @@
               else if(p.prof === '完全忘記') profCounts['完全忘記']++;
 
               let l = p.lang || '未分類';
-              if(!langStats[l]) langStats[l] = { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0 };
+              if(!langStats[l]) langStats[l] = { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 };
               
               langStats[l].count++;
               langStats[l].correct += (p.cCorrect + p.sCorrect);
@@ -786,6 +803,15 @@
               if(p.prof === '熟練') langStats[l].prof3++;
               else if(p.prof === '模糊') langStats[l].prof2++;
               else if(p.prof === '完全忘記') langStats[l].prof1++;
+              
+              // 💡 計算口說平均
+              if (p.speakSimilarity !== undefined && p.speakSimilarity !== null && p.speakSimilarity !== '') {
+                  let sim = Number(p.speakSimilarity);
+                  if(!isNaN(sim)) {
+                     langStats[l].speakSimSum += sim;
+                     langStats[l].speakSimCount++;
+                  }
+              }
           }
       });
 
@@ -797,12 +823,15 @@
          let st = langStats[lang];
          let totalQs = st.correct + st.wrong;
          let acc = totalQs > 0 ? Math.round((st.correct / totalQs) * 100) + '%' : '-';
+         // 💡 取得該語言的口說平均
+         let avgSpeak = st.speakSimCount > 0 ? Math.round(st.speakSimSum / st.speakSimCount) + '%' : '-';
 
          let tr = document.createElement('tr');
          tr.innerHTML = `
             <td>${lang}</td>
             <td style="font-weight:bold;">${st.count}</td>
             <td>${acc}</td>
+            <td style="color:var(--primary); font-weight:bold;">${avgSpeak}</td>
             <td style="color:var(--success); font-weight:bold;">${st.prof3}</td>
             <td style="color:var(--warn); font-weight:bold;">${st.prof2}</td>
             <td style="color:var(--danger); font-weight:bold;">${st.prof1}</td>
@@ -810,6 +839,7 @@
          tbody.appendChild(tr);
       }
 
+      // 💡 修正圖表 RWD 與 Legend 顯示
       let ctxAcc = document.getElementById('accuracyChart').getContext('2d');
       if(accuracyChartInstance) accuracyChartInstance.destroy();
       accuracyChartInstance = new Chart(ctxAcc, {
@@ -818,7 +848,14 @@
               labels: ['答對總數', '答錯總數'],
               datasets: [{ data: [totalCorrect, totalWrong], backgroundColor: ['#10b981', '#ef4444'] }]
           },
-          options: { maintainAspectRatio: false, responsive: true, plugins: { legend: { position: 'bottom' } } }
+          options: { 
+              maintainAspectRatio: false, 
+              responsive: true, 
+              layout: { padding: 10 },
+              plugins: { 
+                  legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } 
+              } 
+          }
       });
 
       let ctxProf = document.getElementById('profChart').getContext('2d');
@@ -829,8 +866,30 @@
               labels: ['熟練', '模糊', '忘記'],
               datasets: [{ data: [profCounts['熟練'], profCounts['模糊'], profCounts['完全忘記']], backgroundColor: ['#10b981', '#f59e0b', '#ef4444'] }]
           },
-          options: { maintainAspectRatio: false, responsive: true, plugins: { legend: { position: 'bottom' } } }
+          options: { 
+              maintainAspectRatio: false, 
+              responsive: true, 
+              layout: { padding: 10 },
+              plugins: { 
+                  legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } 
+              } 
+          }
       });
+    }
+
+    function updateGlobalProgressLocally(word, type, isCorrect, profLevel) {
+      let p = globalProgressData.find(item => item.word === word && item.lang === currentSheetName);
+      if (!p) {
+          p = { lang: currentSheetName, word: word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '' };
+          globalProgressData.push(p);
+      }
+      if (type === 'choice') {
+          if (isCorrect) p.cCorrect++; else p.cIncorrect++;
+      } else if (type === 'spelling') {
+          if (isCorrect) p.sCorrect++; else p.sIncorrect++;
+      } else if (type === 'prof') {
+          p.prof = profLevel;
+      }
     }
 
     function applyQuizProficiency(item, level) {
@@ -841,6 +900,7 @@
       else if (level === '熟練') nextDate.setDate(nextDate.getDate() + 5);
 
       item.nextReview = nextDate.toISOString();
+      updateGlobalProgressLocally(item.word, 'prof', null, level);
       return item.nextReview;
     }
 
@@ -875,7 +935,6 @@
           return aTime - bTime;
         });
       } 
-      // 💡 處理口說專屬複習時間排序
       else if (sortType === 'speakSm2') {
         let now = new Date().getTime();
         sortedData = sortedData.filter(item => {
@@ -1286,6 +1345,7 @@
       document.getElementById('speakingFeedback').innerText = '';
       document.getElementById('recognizedText').innerText = '';
       document.getElementById('speakingNextBtn').style.display = 'none';
+      document.getElementById('skipSpeakingBtn').style.display = 'block'; // 💡 顯示永久略過按鈕
       
       if (isRecording && recognition) recognition.stop();
       if(document.getElementById('autoAudioCheck').checked) speakText(currentQuizItem.word);
