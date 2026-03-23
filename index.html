@@ -384,9 +384,36 @@
     var accuracyChartInstance = null;
     var profChartInstance = null;
 
+    // --- 💡 新增：萊文斯坦距離與模糊比對演算法 ---
+    function levenshteinDistance(a, b) {
+        if (a.length === 0) return b.length;
+        if (b.length === 0) return a.length;
+        var matrix = [];
+        for (var i = 0; i <= b.length; i++) { matrix[i] = [i]; }
+        for (var j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+        for (var i = 1; i <= b.length; i++) {
+            for (var j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+                }
+            }
+        }
+        return matrix[b.length][a.length];
+    }
+
+    function getSimilarity(a, b) {
+        var dist = levenshteinDistance(a, b);
+        var maxLen = Math.max(a.length, b.length);
+        if (maxLen === 0) return 100;
+        return (1 - dist / maxLen) * 100;
+    }
+    // ------------------------------------------
+
     function apiCall(action, payload, onSuccess, onError) {
       if (API_URL.includes("請把你的")) {
-         alert("請先在原始碼第 513 行替換你的 API_URL！");
+         alert("請先在原始碼第 515 行替換你的 API_URL！");
          return;
       }
       payload.action = action;
@@ -499,36 +526,45 @@
         document.getElementById('recognizedText').innerText = '正在聆聽... (請說話)';
       };
       
-      // 💡 口說結果判定與 API 連動
       recognition.onresult = function(event) {
         isCurrentWordAnswered = true; 
         var transcript = event.results[0][0].transcript.trim().toLowerCase();
         var targetWord = currentQuizItem.word.trim().toLowerCase();
-        document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
         
         var cleanTranscript = transcript.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\s]/g,"");
         var cleanTarget = targetWord.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\s]/g,"");
         var cleanKanji = currentQuizItem.kanji ? currentQuizItem.kanji.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()\s]/g,"") : "";
 
-        var feedback = document.getElementById('speakingFeedback');
-        var isCorrect = (cleanTranscript === cleanTarget || cleanTranscript.includes(cleanTarget) ||
-            (cleanKanji !== "" && (cleanTranscript === cleanKanji || cleanTranscript.includes(cleanKanji))));
+        // 💡 導入模糊比對判定
+        var simWord = getSimilarity(cleanTranscript, cleanTarget);
+        var simKanji = cleanKanji ? getSimilarity(cleanTranscript, cleanKanji) : 0;
+        var bestSim = Math.max(simWord, simKanji);
 
+        var isCorrect = (cleanTranscript === cleanTarget || cleanTranscript.includes(cleanTarget) ||
+            (cleanKanji !== "" && (cleanTranscript === cleanKanji || cleanTranscript.includes(cleanKanji))) ||
+            bestSim >= 75); // 容錯率設定為 75% 相似度以上給過
+
+        var feedback = document.getElementById('speakingFeedback');
         let nextRev = '';
 
         if (isCorrect) {
-          feedback.innerText = '發音標準！💯';
+          if (bestSim >= 75 && bestSim < 100 && !cleanTranscript.includes(cleanTarget) && (!cleanKanji || !cleanTranscript.includes(cleanKanji))) {
+             document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」 (相似度 " + Math.round(bestSim) + "%)";
+             feedback.innerText = '發音過關！👍';
+          } else {
+             document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
+             feedback.innerText = '發音標準！💯';
+          }
           feedback.className = 'feedback success';
           
-          // 💡 更新：答對紀錄熟練度與時間
           nextRev = applyQuizProficiency(currentQuizItem, '熟練');
           updateBackend(currentQuizItem.word, true, null, 'speaking', '熟練', nextRev);
 
         } else {
-          feedback.innerText = '發音不太對喔，請再按一次麥克風重試！🤔';
+          document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
+          feedback.innerText = '發音不太對喔 (相似度 ' + Math.round(bestSim) + '%)，請再試一次！🤔';
           feedback.className = 'feedback danger';
           
-          // 💡 更新：答錯紀錄完全忘記與時間
           nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
           updateBackend(currentQuizItem.word, false, transcript, 'speaking', '完全忘記', nextRev);
         }
