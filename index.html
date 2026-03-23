@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  
   <title>多語系單字學習</title>
   
   <meta name="mobile-web-app-capable" content="yes">
@@ -17,7 +16,7 @@
   
   <style>
     :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg: #f3f4f6; --card-bg: #ffffff; --text: #1f2937; --text-light: #6b7280; --success: #10b981; --danger: #ef4444; --warn: #f59e0b; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; /* 避免下拉選單出現原生背景 */ -webkit-tap-highlight-color: transparent;}
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; -webkit-tap-highlight-color: transparent;}
     
     .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, var(--primary), #818cf8); display: flex; justify-content: center; align-items: center; z-index: 9999; }
     .card-box { background: white; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.2); text-align: center; display: flex; flex-direction: column; gap: 1.2rem; align-items: center; max-width: 90%; width: 350px; }
@@ -380,6 +379,9 @@
     var currentSheetName = ''; 
     var currentUser = '';
     
+    // 💡 新增：追蹤目前題目是否已作答，用於頁籤切換時自動換題
+    var isCurrentWordAnswered = false; 
+
     var accuracyChartInstance = null;
     var profChartInstance = null;
 
@@ -495,9 +497,11 @@
         document.getElementById('micBtn').classList.add('recording');
         document.getElementById('recordingStatus').style.display = 'block';
         document.getElementById('speakingFeedback').innerText = '';
-        document.getElementById('recognizedText').innerText = '正在聽...';
+        // 💡 更新：提示文字明確化
+        document.getElementById('recognizedText').innerText = '正在聆聽... (請說話)';
       };
       recognition.onresult = function(event) {
+        isCurrentWordAnswered = true; // 💡 標記已作答
         var transcript = event.results[0][0].transcript.trim().toLowerCase();
         var targetWord = currentQuizItem.word.trim().toLowerCase();
         document.getElementById('recognizedText').innerText = "系統聽到: 「" + transcript + "」";
@@ -512,7 +516,8 @@
           feedback.className = 'feedback success';
           document.getElementById('speakingNextBtn').style.display = 'block';
         } else {
-          feedback.innerText = '發音不太對喔，再試一次！🤔';
+          // 💡 更新：發音錯誤時提醒用戶再次點擊麥克風
+          feedback.innerText = '發音不太對喔，請再按一次麥克風重試！🤔';
           feedback.className = 'feedback danger';
           document.getElementById('speakingNextBtn').style.display = 'block';
         }
@@ -520,13 +525,30 @@
       };
       recognition.onerror = function(event) {
          var feedback = document.getElementById('speakingFeedback');
-         feedback.innerText = "麥克風錯誤或聽不清楚 (" + event.error + ")";
+         // 💡 更新：沒有聽到聲音時的清楚錯誤提示
+         if(event.error === 'no-speech') {
+             feedback.innerText = "未接收到聲音，請再按一次麥克風重試！";
+         } else {
+             feedback.innerText = "麥克風錯誤 (" + event.error + ")，請重試！";
+         }
          feedback.className = 'feedback danger';
+         document.getElementById('recognizedText').innerText = '辨識失敗';
       };
       recognition.onend = function() {
         isRecording = false;
         document.getElementById('micBtn').classList.remove('recording');
         document.getElementById('recordingStatus').style.display = 'none';
+        
+        // 💡 更新：如果結束時還停留在「正在聆聽」，代表完全沒收到音
+        var recText = document.getElementById('recognizedText');
+        if (recText.innerText === '正在聆聽... (請說話)') {
+            recText.innerText = '';
+            var feedback = document.getElementById('speakingFeedback');
+            if(!feedback.innerText) {
+                feedback.innerText = "未接收到語音，請再按一次麥克風重試！";
+                feedback.className = 'feedback danger';
+            }
+        }
       };
     }
     
@@ -628,7 +650,6 @@
       });
     }
 
-    // 💡 更新：移除「如果是英文就隱藏」的判斷
     function populateLevelDropdown() {
       var levelRow = document.getElementById('levelFilterRow');
       levelRow.style.display = 'flex';
@@ -642,7 +663,6 @@
         if(lvl && uniqueLevels.indexOf(lvl) === -1) uniqueLevels.push(lvl);
       }
       
-      // 💡 防呆：如果完全沒有找到任何等級資料，才隱藏該下拉選單
       if(uniqueLevels.length === 0) {
          levelRow.style.display = 'none';
          return;
@@ -669,9 +689,6 @@
       }
       
       document.getElementById('globalControls').style.display = 'flex';
-      
-      var browseEl = document.getElementById('browse');
-      if (browseEl.innerHTML.indexOf('題庫為空') !== -1) location.reload(); 
       
       populateLevelDropdown(); 
       applySort(); 
@@ -778,7 +795,6 @@
       return item.nextReview;
     }
 
-    // 💡 更新：移除「如果是英文就不執行」的限制
     function applySort() {
       if (allVocabData.length === 0) return;
       var sortType = document.getElementById('sortSelect').value;
@@ -840,6 +856,7 @@
       }
       
       currentBrowseIndex = 0; 
+      isCurrentWordAnswered = false; // 💡 重置作答狀態
       
       if(document.getElementById('browse').classList.contains('active')) loadBrowseCard();
       else if(document.getElementById('choice').classList.contains('active')) loadNextChoice();
@@ -872,6 +889,8 @@
          username: currentUser,
          nextReviewISO: nextReviewISO
       });
+      
+      // 💡 此處本來就會自動換題，無須手動操作
     }
 
     function updateProficiencyUI(level) {
@@ -900,6 +919,13 @@
          renderDashboard(); 
       } else {
          document.getElementById('globalControls').style.display = 'flex';
+         
+         // 💡 更新：跨頁籤同步換題邏輯
+         // 如果當前的題目已經「被作答過」，在切換頁籤時自動推進一題，避免重複看到同一個字
+         if (isCurrentWordAnswered) {
+             currentBrowseIndex = (currentBrowseIndex + 1) % vocabData.length;
+             isCurrentWordAnswered = false; 
+         }
       }
 
       if (tabId === 'browse') loadBrowseCard();
@@ -949,12 +975,14 @@
     function nextQuizWord(tab) {
       if(vocabData.length === 0) return;
       currentBrowseIndex = (currentBrowseIndex + 1) % vocabData.length;
+      isCurrentWordAnswered = false; // 💡 重置作答狀態
       if (tab === 'choice') loadNextChoice();
       if (tab === 'spelling') loadNextSpelling();
       if (tab === 'speaking') loadNextSpeaking();
     }
 
     function loadBrowseCard() {
+      isCurrentWordAnswered = false; // 💡 重置作答狀態
       if(vocabData.length === 0) {
         if(document.getElementById('sortSelect').value === 'sm2') {
            document.getElementById('browseWord').innerText = "🎉 恭喜！";
@@ -1018,6 +1046,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if(vocabData.length === 0) return;
 
+      isCurrentWordAnswered = false; // 💡 重置作答狀態
       currentQuizItem = vocabData[currentBrowseIndex]; 
       updateProgressUI(); 
 
@@ -1055,6 +1084,7 @@
         if (buttons[i].innerText === currentQuizItem.translation) buttons[i].classList.add('correct');
       }
       
+      isCurrentWordAnswered = true; // 💡 標記已作答
       var feedback = document.getElementById('choiceFeedback');
       let nextRev = '';
 
@@ -1083,6 +1113,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if(vocabData.length === 0) return;
 
+      isCurrentWordAnswered = false; // 💡 重置作答狀態
       currentQuizItem = vocabData[currentBrowseIndex]; 
       updateProgressUI(); 
 
@@ -1131,6 +1162,7 @@
       inputEl.disabled = true;
       document.getElementById('spellingSubmitBtn').style.display = 'none';
 
+      isCurrentWordAnswered = true; // 💡 標記已作答
       var isCorrect = false;
       var target1 = currentQuizItem.word.toLowerCase();
       var target2 = currentQuizItem.kanji ? currentQuizItem.kanji.toLowerCase() : '';
@@ -1176,6 +1208,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if(vocabData.length === 0) return;
 
+      isCurrentWordAnswered = false; // 💡 重置作答狀態
       currentQuizItem = vocabData[currentBrowseIndex]; 
       updateProgressUI(); 
       
