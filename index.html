@@ -323,7 +323,7 @@
         <div class="chart-box" style="padding: 1.5rem; justify-content: flex-start; margin-bottom: 1.5rem;">
            <h4 style="color: var(--premium); margin-bottom: 1rem; margin-top:0;">🤖 AI 發音診斷簿</h4>
            <div id="aiHistoryContainer" style="width: 100%; max-height: 400px; overflow-y: auto; text-align: left;">
-              </div>
+           </div>
         </div>
 
         <div class="chart-box" style="padding: 1.5rem; justify-content: flex-start;">
@@ -512,7 +512,7 @@
 
     function apiCall(action, payload, onSuccess, onError) {
       if (API_URL.includes("請把你的")) {
-         showToast("請先在原始碼第 580 行替換你的 API_URL！", "danger");
+         showToast("請先在原始碼第 552 行替換你的 API_URL！", "danger");
          return;
       }
       payload.action = action;
@@ -681,8 +681,8 @@
                 let fbId = activeTarget === 'word' ? 'aiWordFeedback' : 'aiExampleFeedback';
                 if (res.success) {
                     let parsedHtml = marked.parse(res.reply);
-                    // 💡 取得回傳的錄音網址並插入播放按鈕
-                    let myAudioBtn = res.audioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="new Audio('${res.audioUrl}').play()">🎧 播放我的錄音</button>` : '';
+                    // 💡 修正：把 new Audio().play() 改為 window.open 避開瀏覽器 CORS 阻擋
+                    let myAudioBtn = res.audioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="window.open('${res.audioUrl}', '_blank')">🎧 播放我的錄音</button>` : '';
                     document.getElementById(fbId).innerHTML = parsedHtml + myAudioBtn;
                     
                     if(activeTarget === 'word') {
@@ -734,14 +734,16 @@
           let wFbBox = document.getElementById('aiWordFeedback');
           if(currentQuizItem.aiWordFeedback) {
               wFbBox.style.display = 'block';
-              let myAudioBtn = currentQuizItem.aiWordAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="new Audio('${currentQuizItem.aiWordAudioUrl}').play()">🎧 播放我的錄音</button>` : '';
+              // 💡 修正
+              let myAudioBtn = currentQuizItem.aiWordAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="window.open('${currentQuizItem.aiWordAudioUrl}', '_blank')">🎧 播放我的錄音</button>` : '';
               wFbBox.innerHTML = marked.parse(currentQuizItem.aiWordFeedback) + myAudioBtn;
           } else { wFbBox.style.display = 'none'; wFbBox.innerHTML = ''; }
           
           let eFbBox = document.getElementById('aiExampleFeedback');
           if(currentQuizItem.aiExampleFeedback) {
               eFbBox.style.display = 'block';
-              let myAudioBtn = currentQuizItem.aiExampleAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="new Audio('${currentQuizItem.aiExampleAudioUrl}').play()">🎧 播放我的錄音</button>` : '';
+              // 💡 修正
+              let myAudioBtn = currentQuizItem.aiExampleAudioUrl ? `<button class="btn-skip" style="font-size:0.85rem; padding:0.2rem 0.5rem; margin-top:0.5rem;" onclick="window.open('${currentQuizItem.aiExampleAudioUrl}', '_blank')">🎧 播放我的錄音</button>` : '';
               eFbBox.innerHTML = marked.parse(currentQuizItem.aiExampleFeedback) + myAudioBtn;
           } else { eFbBox.style.display = 'none'; eFbBox.innerHTML = ''; }
 
@@ -814,7 +816,6 @@
         });
     }
 
-    // 💡 新增：渲染 AI 發音診斷簿 (包含 🔊 標準發音 & 🎧 用戶錄音按鈕)
     function renderAIHistory() {
         let container = document.getElementById('aiHistoryContainer');
         container.innerHTML = '';
@@ -844,20 +845,22 @@
             
             let html = '';
             if(v.aiWordFeedback) {
+                // 💡 修正：這裡的錄音按鈕也改為 window.open
                 html += `<div style="margin-bottom:1rem;">
                             <div style="margin-bottom: 0.5rem;"><strong>單字診斷：</strong>
                                 <button class="speaker-btn" style="font-size:1rem;" onclick="speakText('${v.word}')">🔊 標準音</button>
-                                ${v.aiWordAudioUrl ? `<button class="btn-skip" style="font-size:0.8rem; padding:0.2rem 0.5rem; margin-left:0.5rem;" onclick="new Audio('${v.aiWordAudioUrl}').play()">🎧 我的錄音</button>` : ''}
+                                ${v.aiWordAudioUrl ? `<button class="btn-skip" style="font-size:0.8rem; padding:0.2rem 0.5rem; margin-left:0.5rem;" onclick="window.open('${v.aiWordAudioUrl}', '_blank')">🎧 我的錄音</button>` : ''}
                             </div>
                             ${marked.parse(v.aiWordFeedback)}
                          </div>`;
             }
             if(v.aiExampleFeedback) {
                 let safeEx = (v.example ? v.example.replace(/\[|\]/g, '') : '').replace(/"/g, '&quot;');
+                // 💡 修正：這裡的錄音按鈕也改為 window.open
                 html += `<div>
                             <div style="margin-bottom: 0.5rem;"><strong>例句診斷：</strong>
                                 <button class="speaker-btn" style="font-size:1rem;" onclick="speakText(this.getAttribute('data-text'))" data-text="${safeEx}">🔊 標準音</button>
-                                ${v.aiExampleAudioUrl ? `<button class="btn-skip" style="font-size:0.8rem; padding:0.2rem 0.5rem; margin-left:0.5rem;" onclick="new Audio('${v.aiExampleAudioUrl}').play()">🎧 我的錄音</button>` : ''}
+                                ${v.aiExampleAudioUrl ? `<button class="btn-skip" style="font-size:0.8rem; padding:0.2rem 0.5rem; margin-left:0.5rem;" onclick="window.open('${v.aiExampleAudioUrl}', '_blank')">🎧 我的錄音</button>` : ''}
                             </div>
                             ${marked.parse(v.aiExampleFeedback)}
                          </div>`;
@@ -1371,7 +1374,6 @@
          renderDashboard(); 
          return;
       } 
-      // 💡 新增：切換到紀錄分頁時的邏輯
       else if (tabId === 'records') {
          document.getElementById('globalControls').style.display = 'none';
          document.getElementById('globalProgress').style.display = 'none'; 
