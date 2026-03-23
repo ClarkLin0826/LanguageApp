@@ -601,6 +601,9 @@
         updateBackend(currentQuizItem.word, isCorrect, null, 'speaking', null, speakNextRev, bestSim);
         currentQuizItem.speakSimilarity = bestSim; 
         
+        // 💡 同步更新本地記憶體，讓看板即時變動！
+        updateGlobalProgressLocally(currentQuizItem.word, 'speaking', isCorrect, null, bestSim);
+        
         document.getElementById('speakingPrevSim').innerText = "💡 剛剛發音相似度：" + bestSim + "%";
         document.getElementById('speakingNextBtn').style.display = 'block';
         setTimeout(function() { document.getElementById('speakingNextBtn').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
@@ -608,7 +611,6 @@
       
       recognition.onerror = function(event) {
          var feedback = document.getElementById('speakingFeedback');
-         // 💡 修正：錯誤提示文字更新
          if(event.error === 'no-speech') {
              feedback.innerText = "沒清楚收音辨識，請再按一次麥克風。";
          } else {
@@ -628,7 +630,6 @@
             recText.innerText = '';
             var feedback = document.getElementById('speakingFeedback');
             if(!feedback.innerText) {
-                // 💡 修正：錯誤提示文字更新
                 feedback.innerText = "沒清楚收音辨識，請再按一次麥克風。";
                 feedback.className = 'feedback danger';
             }
@@ -783,10 +784,18 @@
       let totalLearned = 0;
       let totalCorrect = 0, totalWrong = 0;
       let profCounts = { '熟練':0, '模糊':0, '完全忘記':0 };
-      let langStats = {}; 
+      
+      // 💡 修正：預設顯示所有 4 個語言，即使該語言還沒有任何進度也會出現 `0` 和 `-`
+      let langStats = {
+          '韓文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
+          '英文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
+          '日文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
+          '泰文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 }
+      };
 
       globalProgressData.forEach(p => {
-          let hasInteracted = p.cCorrect>0 || p.cIncorrect>0 || p.sCorrect>0 || p.sIncorrect>0 || p.prof;
+          // 💡 修正：口說有成績也算作是有互動 (hasInteracted)
+          let hasInteracted = p.cCorrect>0 || p.cIncorrect>0 || p.sCorrect>0 || p.sIncorrect>0 || p.prof || (p.speakSimilarity !== undefined && p.speakSimilarity !== '');
           if(hasInteracted) {
               totalLearned++;
               totalCorrect += (p.cCorrect + p.sCorrect);
@@ -824,7 +833,6 @@
          let st = langStats[lang];
          let totalQs = st.correct + st.wrong;
          let acc = totalQs > 0 ? Math.round((st.correct / totalQs) * 100) + '%' : '-';
-         // 💡 修正：平均口說分數正確呈現
          let avgSpeak = st.speakSimCount > 0 ? Math.round(st.speakSimSum / st.speakSimCount) + '%' : '-';
 
          let tr = document.createElement('tr');
@@ -877,10 +885,10 @@
       });
     }
 
-    function updateGlobalProgressLocally(word, type, isCorrect, profLevel) {
+    function updateGlobalProgressLocally(word, type, isCorrect, profLevel, speakSim) {
       let p = globalProgressData.find(item => item.word === word && item.lang === currentSheetName);
       if (!p) {
-          p = { lang: currentSheetName, word: word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '' };
+          p = { lang: currentSheetName, word: word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '' };
           globalProgressData.push(p);
       }
       if (type === 'choice') {
@@ -889,6 +897,11 @@
           if (isCorrect) p.sCorrect++; else p.sIncorrect++;
       } else if (type === 'prof') {
           p.prof = profLevel;
+      }
+      
+      // 💡 確保口說分數被寫入本地記憶體，讓看板即時更新
+      if (speakSim !== undefined && speakSim !== null) {
+          p.speakSimilarity = speakSim;
       }
     }
 
@@ -1044,7 +1057,6 @@
       let sortSelect = document.getElementById('sortSelect');
       let needsResort = false;
 
-      // 💡 修正：進入口說題自動切換口說排序，離開則切回
       if (tabId === 'speaking') {
           if (sortSelect.value !== 'speakSm2') {
               sortSelect.value = 'speakSm2';
@@ -1236,6 +1248,7 @@
         btnElement.classList.add('correct');
         feedback.innerText = '答對了！'; feedback.className = 'feedback success';
         currentQuizItem.choiceCorrect++;
+        updateGlobalProgressLocally(currentQuizItem.word, 'choice', true, null); 
         
         nextRev = applyQuizProficiency(currentQuizItem, '熟練');
         updateBackend(currentQuizItem.word, true, null, 'choice', '熟練', nextRev); 
@@ -1243,6 +1256,7 @@
         btnElement.classList.add('wrong');
         feedback.innerText = '答錯了！正確答案是：' + currentQuizItem.translation; feedback.className = 'feedback danger';
         currentQuizItem.choiceIncorrect++;
+        updateGlobalProgressLocally(currentQuizItem.word, 'choice', false, null); 
         
         nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
         updateBackend(currentQuizItem.word, false, null, 'choice', '完全忘記', nextRev);
@@ -1317,6 +1331,7 @@
         feedback.innerText = '拼字正確！'; feedback.className = 'feedback success';
         inputEl.classList.remove('error-input');
         currentQuizItem.spellCorrect++;
+        updateGlobalProgressLocally(currentQuizItem.word, 'spelling', true, null); 
         
         nextRev = applyQuizProficiency(currentQuizItem, '熟練');
         updateBackend(currentQuizItem.word, true, null, 'spelling', '熟練', nextRev); 
@@ -1335,6 +1350,7 @@
         currentQuizItem.errorLog = currentQuizItem.errorLog ? currentQuizItem.errorLog + ', ' + userInput : userInput;
         
         currentQuizItem.spellIncorrect++;
+        updateGlobalProgressLocally(currentQuizItem.word, 'spelling', false, null); 
         
         nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
         updateBackend(currentQuizItem.word, false, userInput, 'spelling', '完全忘記', nextRev); 
