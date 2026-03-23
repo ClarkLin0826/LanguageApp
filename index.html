@@ -503,7 +503,8 @@
             btn.innerText = "⏳ 思考中...";
             btn.disabled = true;
 
-            apiCall('getAIAssistant', { taskType: 'sentence', word: word, lang: lang }, function(res) {
+            // 💡 修復：補上 userRole 通行證
+            apiCall('getAIAssistant', { taskType: 'sentence', word: word, lang: lang, userRole: userRole }, function(res) {
                 btn.innerText = originalText;
                 btn.disabled = false;
                 if(res.success) {
@@ -531,7 +532,8 @@
             box.style.display = 'block';
             box.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 正在發功找記憶法...';
             
-            apiCall('getAIAssistant', { taskType: 'mnemonic', word: word, lang: lang }, function(res) {
+            // 💡 修復：補上 userRole 通行證
+            apiCall('getAIAssistant', { taskType: 'mnemonic', word: word, lang: lang, userRole: userRole }, function(res) {
                 if(res.success) box.innerHTML = `💡 <b>AI 記憶法：</b><br>${marked.parse(res.reply)}`;
                 else box.innerHTML = `❌ ${res.message}`;
             }, function(err) { box.innerHTML = `❌ 連線失敗`; });
@@ -1486,7 +1488,6 @@
       if(tabId === 'dashboard') {
          document.getElementById('globalControls').style.display = 'none';
          document.getElementById('globalProgress').style.display = 'none'; 
-         // 💡 確保圖表安全渲染
          setTimeout(() => { renderDashboard(); }, 50);
          return;
       } 
@@ -1613,7 +1614,6 @@
       if(item.exampleTranslation) exTransEl.classList.remove('revealed');
       else exTransEl.classList.add('revealed'); 
       
-      // 💡 隱藏並清空 AI 記憶法區塊
       let mBox = document.getElementById('aiMnemonicBox');
       mBox.style.display = 'none'; mBox.innerHTML = '';
       
@@ -1813,6 +1813,7 @@
         
         // 💡 全自動：拼錯時呼叫 AI 抓漏 (Premium 專屬)
         if (userRole === 'premium' || userRole === 'admin') {
+             // 💡 修復：補上 userRole 通行證
              let aiDiv = document.createElement('div');
              aiDiv.style.marginTop = "0.8rem";
              aiDiv.style.color = "var(--premium)";
@@ -1820,7 +1821,7 @@
              aiDiv.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 分析錯因中...';
              feedback.appendChild(aiDiv);
 
-             apiCall('getAIAssistant', { taskType: 'spelling', word: currentQuizItem.word, lang: currentSheetName, extraInfo: userInput }, function(res) {
+             apiCall('getAIAssistant', { taskType: 'spelling', word: currentQuizItem.word, lang: currentSheetName, extraInfo: userInput, userRole: userRole }, function(res) {
                  if (res.success) aiDiv.innerHTML = `🤖 <b>AI 抓漏：</b> ${res.reply}`;
                  else aiDiv.remove();
              }, function(err) { aiDiv.remove(); });
