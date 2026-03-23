@@ -15,7 +15,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   
   <style>
-    :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg: #f3f4f6; --card-bg: #ffffff; --text: #1f2937; --text-light: #6b7280; --success: #10b981; --danger: #ef4444; --warn: #f59e0b; }
+    :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg: #f3f4f6; --card-bg: #ffffff; --text: #1f2937; --text-light: #6b7280; --success: #10b981; --danger: #ef4444; --warn: #f59e0b; --premium: #8b5cf6;}
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; -webkit-tap-highlight-color: transparent;}
     
     .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, var(--primary), #818cf8); display: flex; justify-content: center; align-items: center; z-index: 9999; }
@@ -285,6 +285,12 @@
                <canvas id="profChart"></canvas>
             </div>
           </div>
+          
+          <div class="chart-box" style="grid-column: 1 / -1; padding: 1.5rem; justify-content: flex-start;">
+             <h4 style="color: var(--danger); margin-bottom: 1rem; margin-top:0;">🚫 口說永久黑名單</h4>
+             <div id="blacklistContainer" style="width: 100%; max-height: 200px; overflow-y: auto; text-align: left;">
+                </div>
+          </div>
         </div>
       </div>
 
@@ -374,8 +380,12 @@
             <button id="micBtn" class="mic-btn" onclick="toggleRecording()">🎙️</button>
             <div id="recordingStatus" style="color: var(--danger); font-weight: bold; font-size: 1rem; margin-top: 1rem; display: none;">錄音中...請唸出單字</div>
           </div>
+          
           <div id="recognizedText" style="color: var(--text-light); font-size: 1rem; margin-bottom: 1rem; min-height: 1.5rem;"></div>
           <div id="speakingFeedback" class="feedback"></div>
+          
+          <button id="aiTutorBtn" class="btn btn-primary" style="margin-top: 1.5rem; display: none;" onclick="callAITutor()">🤖 AI 家教點評</button>
+          
           <button id="speakingNextBtn" class="btn btn-primary" style="display:none;" onclick="nextQuizWord('speaking')">下一題</button>
         </div>
       </div>
@@ -394,6 +404,7 @@
     var synth = window.speechSynthesis;
     var currentSheetName = ''; 
     var currentUser = '';
+    var userRole = 'free'; // 💡 新增：儲存使用者權限
     
     var isCurrentWordAnswered = false; 
 
@@ -487,6 +498,8 @@
         document.getElementById('loginLoader').style.display = 'none';
         if(res.success) {
            currentUser = u;
+           userRole = res.role; // 💡 儲存使用者權限
+           
            document.getElementById('userBadge').innerText = "👤 " + u;
            document.getElementById('loginScreen').style.display = 'none';
            document.getElementById('welcomeScreen').style.display = 'flex'; 
@@ -499,6 +512,7 @@
 
     function doLogout() {
       currentUser = '';
+      userRole = 'free';
       allVocabData = [];
       vocabData = [];
       globalProgressData = [];
@@ -540,10 +554,58 @@
       var farFuture = "2099-12-31T00:00:00.000Z";
       currentQuizItem.speakNextReview = farFuture;
       
+      // 更新本地全域資料
+      let p = globalProgressData.find(item => item.word === currentQuizItem.word && item.lang === currentSheetName);
+      if(p) p.speakNextReview = farFuture;
+
       updateBackend(currentQuizItem.word, true, null, 'speaking', null, farFuture, null);
       
-      alert("已將「" + currentQuizItem.word + "」從口說智能複習中永久排除！");
+      alert("已將「" + currentQuizItem.word + "」從口說智能複習中永久排除！\n\n(若需恢復，請至「我的進度」看板)");
       nextQuizWord('speaking');
+    }
+
+    // 💡 新增：恢復口說單字 API
+    function restoreBlacklistWord(word) {
+        // 更新本地資料
+        let item = allVocabData.find(v => v.word === word);
+        if(item) item.speakNextReview = '';
+        let p = globalProgressData.find(v => v.word === word && v.lang === currentSheetName);
+        if(p) p.speakNextReview = '';
+
+        // 重新渲染看板裡的黑名單區塊
+        renderBlacklist();
+        
+        // 呼叫後端 API
+        apiCall('restoreSpeaking', {sheetName: currentSheetName, word: word, username: currentUser});
+    }
+
+    // 💡 新增：渲染黑名單畫面
+    function renderBlacklist() {
+        let container = document.getElementById('blacklistContainer');
+        container.innerHTML = '';
+        let blacklistedWords = allVocabData.filter(v => v.speakNextReview && v.speakNextReview.includes('2099'));
+        
+        if(blacklistedWords.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:var(--text-light); margin:0; font-size: 0.9rem;">目前沒有被略過的單字</p>';
+            return;
+        }
+
+        blacklistedWords.forEach(v => {
+            let div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+            div.style.borderBottom = '1px solid #f3f4f6';
+            div.style.padding = '0.5rem 0';
+            div.innerHTML = `<span style="font-size: 0.95rem;"><b>${v.word}</b> (${v.translation})</span>
+                             <button class="btn-skip" style="font-size:0.8rem; padding:0.3rem 0.6rem;" onclick="restoreBlacklistWord('${v.word}')">恢復測驗</button>`;
+            container.appendChild(div);
+        });
+    }
+
+    // 💡 新增：AI 家教點評按鈕邏輯
+    function callAITutor() {
+       alert("即將啟動 Gemini AI 語音點評功能！\n(正在建構專屬後端通道，敬請期待 🚀)");
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -601,7 +663,6 @@
         updateBackend(currentQuizItem.word, isCorrect, null, 'speaking', null, speakNextRev, bestSim);
         currentQuizItem.speakSimilarity = bestSim; 
         
-        // 💡 確保本地更新，讓看板即時變更
         updateGlobalProgressLocally(currentQuizItem.word, 'speaking', isCorrect, null, bestSim);
         
         document.getElementById('speakingPrevSim').innerText = "💡 剛剛發音相似度：" + bestSim + "%";
@@ -785,7 +846,6 @@
       let totalCorrect = 0, totalWrong = 0;
       let profCounts = { '熟練':0, '模糊':0, '完全忘記':0 };
       
-      // 💡 保底顯示四種語言
       let langStats = {
           '韓文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
           '英文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
@@ -794,7 +854,6 @@
       };
 
       globalProgressData.forEach(p => {
-          // 💡 修正：加上 speakSimilarity 判斷
           let hasInteracted = p.cCorrect>0 || p.cIncorrect>0 || p.sCorrect>0 || p.sIncorrect>0 || p.prof || (p.speakSimilarity !== undefined && p.speakSimilarity !== null && p.speakSimilarity !== '');
           if(hasInteracted) {
               totalLearned++;
@@ -883,12 +942,15 @@
               } 
           }
       });
+      
+      // 💡 渲染黑名單畫面
+      renderBlacklist();
     }
 
     function updateGlobalProgressLocally(word, type, isCorrect, profLevel, speakSim) {
       let p = globalProgressData.find(item => item.word === word && item.lang === currentSheetName);
       if (!p) {
-          p = { lang: currentSheetName, word: word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '' };
+          p = { lang: currentSheetName, word: word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '' };
           globalProgressData.push(p);
       }
       if (type === 'choice') {
@@ -950,6 +1012,8 @@
       else if (sortType === 'speakSm2') {
         let now = new Date().getTime();
         sortedData = sortedData.filter(item => {
+           // 💡 判斷黑名單 2099 年不在此出現
+           if (item.speakNextReview && item.speakNextReview.includes('2099')) return false; 
            if (!item.speakNextReview) return true; 
            return new Date(item.speakNextReview).getTime() <= now; 
         });
@@ -1377,6 +1441,21 @@
          prevSimEl.innerText = "💡 上次發音相似度：" + currentQuizItem.speakSimilarity + "%";
       } else {
          prevSimEl.innerText = "";
+      }
+      
+      // 💡 新增：AI 家教按鈕權限判斷
+      let aiBtn = document.getElementById('aiTutorBtn');
+      aiBtn.style.display = 'inline-block';
+      if(userRole === 'premium' || userRole === 'admin') {
+          aiBtn.innerText = '🤖 AI 家教點評';
+          aiBtn.style.backgroundColor = 'var(--premium)';
+          aiBtn.style.color = 'white';
+          aiBtn.onclick = callAITutor;
+      } else {
+          aiBtn.innerText = '🔒 AI 家教 (需 Premium)';
+          aiBtn.style.backgroundColor = '#e5e7eb';
+          aiBtn.style.color = 'var(--text-light)';
+          aiBtn.onclick = function() { alert('此為 Premium 專屬功能，請聯絡管理員升級帳號！🚀'); };
       }
 
       document.getElementById('speakingFeedback').innerText = '';
