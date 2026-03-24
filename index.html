@@ -535,6 +535,10 @@
             box.style.display = 'block';
             box.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 正在發功找記憶法...';
             
+            // 💡 點擊後隱藏按鈕，避免重複呼叫
+            if (taskType === 'spelling_mnemonic') document.getElementById('spellingMnemonicBtn').style.display = 'none';
+            if (taskType === 'mnemonic') document.getElementById('aiMnemonicBtn').style.display = 'none';
+
             apiCall('getAIAssistant', { taskType: 'mnemonic', word: word, lang: lang, userRole: userRole }, function(res) {
                 if(res.success) {
                     box.innerHTML = `💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(res.reply)}`;
@@ -1356,7 +1360,6 @@
              tbody.appendChild(tr);
           }
 
-          // 💡 物理刪除法：直接把裝 Canvas 的容器清空，塞入全新的 Canvas，避開一切快取！
           document.getElementById('accContainer').innerHTML = '<canvas id="accuracyChart"></canvas>';
           let ctxAcc = document.getElementById('accuracyChart').getContext('2d');
           
@@ -1373,7 +1376,6 @@
               options: { maintainAspectRatio: false, responsive: true, layout: { padding: 10 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } } }
           });
 
-          // 💡 物理刪除法：直接把裝 Canvas 的容器清空，塞入全新的 Canvas
           document.getElementById('profContainer').innerHTML = '<canvas id="profChart"></canvas>';
           let ctxProf = document.getElementById('profChart').getContext('2d');
           
@@ -1395,7 +1397,6 @@
       }
     }
 
-    // 💡 關鍵修復：用最安全的獨立邏輯更新進度，避免陣列操作引發舊瀏覽器報錯
     function updateGlobalProgressLocally(word, type, isCorrect, profLevel, speakSim) {
       let p = globalProgressData.find(item => item.word === word && item.lang === currentSheetName);
       if (!p) {
@@ -1784,7 +1785,6 @@
       setTimeout(function() { document.getElementById('choiceWordDisplay').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
     }
 
-    // 💡 關鍵修復：用最安全的 Try...Catch 和獨立變數，防止舊手機瀏覽器報錯！
     function checkChoice(btnElement, isCorrect) {
       var buttons = document.getElementById('choiceOptions').querySelectorAll('.option-btn');
       for (var i = 0; i < buttons.length; i++) {
@@ -1818,7 +1818,6 @@
           console.error(e);
       }
 
-      // 💡 按鈕顯示指令絕對會執行！
       document.getElementById('choiceNextBtn').style.display = 'block';
       setTimeout(function() { document.getElementById('choiceNextBtn').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
     }
@@ -1875,7 +1874,6 @@
       setTimeout(function() { document.getElementById('spellingTranslation').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
     }
 
-    // 💡 關鍵修復：用 Try...Catch 確保流程順暢
     function checkSpelling() {
       var inputEl = document.getElementById('spellingInput');
       var userInput = inputEl.value.trim().toLowerCase();
@@ -1917,21 +1915,25 @@
             currentQuizItem.errorLog = currentQuizItem.errorLog ? currentQuizItem.errorLog + ', ' + userInput : userInput;
             
             let spellingMnemonicBtn = document.getElementById('spellingMnemonicBtn');
-            spellingMnemonicBtn.style.display = 'inline-block';
-            if (userRole === 'premium' || userRole === 'admin') {
-                spellingMnemonicBtn.innerText = "🆘 忘記了？AI 救救我";
-                spellingMnemonicBtn.onclick = function() { getAITextAssistant('spelling_mnemonic'); };
-                spellingMnemonicBtn.style.opacity = "1";
-            } else {
-                spellingMnemonicBtn.innerText = "🔒 忘記了？AI 救救我";
-                spellingMnemonicBtn.onclick = function() { showToast('請升級 Premium 解鎖 AI 助理', 'warn'); };
-                spellingMnemonicBtn.style.opacity = "0.6";
-            }
-
             let spellMbox = document.getElementById('spellingMnemonicBox');
+
+            // 💡 防劇透核心邏輯：如果已經有 AI 記憶法，直接顯示，並隱藏按鈕
             if (currentQuizItem.aiMnemonic) {
                 spellMbox.style.display = 'block';
                 spellMbox.innerHTML = `💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(currentQuizItem.aiMnemonic)}`;
+                spellingMnemonicBtn.style.display = 'none';
+            } else {
+                // 如果沒有記憶法，就顯示按鈕讓使用者可以點擊呼叫
+                spellingMnemonicBtn.style.display = 'inline-block';
+                if (userRole === 'premium' || userRole === 'admin') {
+                    spellingMnemonicBtn.innerText = "🆘 忘記了？AI 救救我";
+                    spellingMnemonicBtn.onclick = function() { getAITextAssistant('spelling_mnemonic'); };
+                    spellingMnemonicBtn.style.opacity = "1";
+                } else {
+                    spellingMnemonicBtn.innerText = "🔒 忘記了？AI 救救我";
+                    spellingMnemonicBtn.onclick = function() { showToast('請升級 Premium 解鎖 AI 助理', 'warn'); };
+                    spellingMnemonicBtn.style.opacity = "0.6";
+                }
             }
             
             currentQuizItem.spellIncorrect++;
@@ -1939,18 +1941,6 @@
             
             nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
             updateBackend(currentQuizItem.word, false, userInput, 'spelling', '完全忘記', nextRev); 
-            
-            if (userRole === 'premium' || userRole === 'admin') {
-                 let aiDiv = document.createElement('div');
-                 aiDiv.style.marginTop = "0.8rem"; aiDiv.style.color = "var(--premium)"; aiDiv.style.fontSize = "0.95rem";
-                 aiDiv.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 分析錯因中...';
-                 feedback.appendChild(aiDiv);
-
-                 apiCall('getAIAssistant', { taskType: 'spelling', word: currentQuizItem.word, lang: currentSheetName, extraInfo: userInput, userRole: userRole }, function(res) {
-                     if (res.success) aiDiv.innerHTML = `🤖 <b>AI 抓漏：</b> ${res.reply}`;
-                     else aiDiv.remove();
-                 }, function(err) { aiDiv.remove(); });
-            }
           }
       } catch (e) {
           console.error(e);
@@ -1991,7 +1981,6 @@
       setTimeout(function() { document.getElementById('speakingWord').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
     }
     
-    // 💡 關鍵修復：補回被誤刪的傳送資料後端 API 函數
     function updateBackend(word, isCorrect, userInput, testType, autoProfLevel, nextReviewISO, speakSimilarity) {
       apiCall('updateTestResult', {
          sheetName: currentSheetName,
