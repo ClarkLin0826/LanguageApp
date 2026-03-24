@@ -114,7 +114,7 @@
     .error-msg { color: var(--danger); font-weight: bold; margin-top: 0.5rem;}
     .shortcut-hint { font-size: 0.8rem; color: var(--text-light); text-align: center; margin-top: 1.5rem; border-top: 1px dashed #e5e7eb; padding-top: 0.5rem; }
 
-    /* 💡 修復：永遠強制單行上下排列，解決電腦版破圖問題 */
+    /* 確保所有圖表在所有設備上都是單欄乾淨排列 */
     .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 1.5rem; }
     .chart-box { background: var(--bg); padding: 1.5rem; border-radius: 1rem; display: flex; flex-direction: column; align-items: center; width: 100%; box-sizing: border-box; }
     .chart-box h4 { margin-top: 0; color: var(--text-light); text-align: center; margin-bottom: 1rem; width: 100%;}
@@ -159,7 +159,6 @@
       .options-grid { gap: 0.4rem; margin-top: 0.5rem; }
       .example-box { padding: 0.75rem; margin-bottom: 1rem; }
       .spelling-input { padding: 0.75rem; font-size: 1.2rem; margin: 1rem 0 0.5rem 0; }
-      /* 💡 移除不必要的手機版 grid-template-columns，統一交給全域控制 */
       .dashboard-grid { gap: 1rem; }
       .chart-container { height: 220px; max-width: 100%;}
     }
@@ -475,6 +474,9 @@
     // ⚠️ 記得把這裡換回你專屬的 Google API 網址 ⚠️
     const API_URL = "https://script.google.com/macros/s/AKfycbwfysuXE77bR2x8YuK2bRHL9aPKNyxj2zug2MXBO6Km0mZbamXbAzaF_oqZwEOCjzEdvQ/exec";
 
+    var accuracyChartInstance = null;
+    var profChartInstance = null;
+
     var allVocabData = []; 
     var vocabData = [];
     var globalProgressData = []; 
@@ -555,40 +557,19 @@
         if(type === 'mnemonic') p.aiMnemonic = text;
     }
 
-    // --------------------------------------------------------
-    // 💡 終極 AudioContext 音頻解碼引擎
-    // --------------------------------------------------------
-    let audioCtx = null;
-    let currentAudioSource = null;
     let currentPlaybackAudio = null;
     let currentPlaybackBtn = null;
     let originalBtnText = "";
 
     function playAudio(btn, type, data) {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-
         if (currentPlaybackAudio) {
             currentPlaybackAudio.pause();
-            currentPlaybackAudio = null;
-        }
-        if (currentAudioSource) {
-            try { currentAudioSource.stop(); } catch(e){}
-            currentAudioSource = null;
-        }
-
-        if (currentPlaybackBtn) {
-            currentPlaybackBtn.innerText = originalBtnText;
-            currentPlaybackBtn.disabled = false;
-        }
-
-        if (currentPlaybackBtn === btn) {
-            currentPlaybackBtn = null;
-            return;
+            if (currentPlaybackBtn) currentPlaybackBtn.innerText = originalBtnText;
+            if (currentPlaybackBtn === btn) {
+                currentPlaybackAudio = null;
+                currentPlaybackBtn = null;
+                return;
+            }
         }
 
         currentPlaybackBtn = btn;
@@ -611,45 +592,17 @@
             apiCall('getAudio', { audioUrl: data }, function(res) {
                 if (res.success) {
                     if (currentPlaybackBtn !== btn) return; 
-                    
-                    btn.innerText = "⏳ 轉碼中...";
-                    try {
-                        const binaryString = atob(res.base64);
-                        const len = binaryString.length;
-                        const bytes = new Uint8Array(len);
-                        for (let i = 0; i < len; i++) {
-                            bytes[i] = binaryString.charCodeAt(i);
-                        }
-                        
-                        audioCtx.decodeAudioData(bytes.buffer, function(buffer) {
-                            if (currentPlaybackBtn !== btn) return; 
-
-                            currentAudioSource = audioCtx.createBufferSource();
-                            currentAudioSource.buffer = buffer;
-                            currentAudioSource.connect(audioCtx.destination);
-                            
-                            currentAudioSource.onended = () => {
-                                if(currentPlaybackBtn === btn) { 
-                                    btn.innerText = originalBtnText; 
-                                    currentPlaybackBtn = null; 
-                                    btn.disabled = false;
-                                }
-                            };
-                            
-                            btn.innerText = "🔊 播放中...";
-                            btn.disabled = false;
-                            currentAudioSource.start(0);
-                            
-                        }, function(err) {
-                            showToast("音軌解碼失敗", "danger");
-                            btn.innerText = originalBtnText;
-                            btn.disabled = false;
-                        });
-                    } catch(err) {
-                        showToast("音檔解析錯誤", "danger");
+                    let audioSrc = `data:${res.mimeType};base64,${res.base64}`;
+                    currentPlaybackAudio = new Audio(audioSrc);
+                    btn.innerText = "🔊 播放中...";
+                    btn.disabled = false;
+                    currentPlaybackAudio.onended = () => { 
+                        if(currentPlaybackBtn === btn) { btn.innerText = originalBtnText; currentPlaybackBtn = null; }
+                    };
+                    currentPlaybackAudio.play().catch(e => {
+                        showToast("播放失敗", "danger");
                         btn.innerText = originalBtnText;
-                        btn.disabled = false;
-                    }
+                    });
                 } else {
                     btn.innerText = "❌ 讀取失敗"; btn.disabled = false;
                     setTimeout(() => { if(currentPlaybackBtn === btn) btn.innerText = originalBtnText; }, 2000);
@@ -1287,7 +1240,6 @@
       switchTab('browse');
     }
 
-    // 💡 物理刪除法 + 強制單行：徹底解決手機快取和破圖問題！
     function renderDashboard() {
       let totalLearned = 0;
       let totalCorrect = 0, totalWrong = 0;
@@ -1392,6 +1344,7 @@
       }
     }
 
+    // 💡 關鍵修復：用最安全的獨立邏輯更新進度，避免陣列操作引發舊瀏覽器報錯
     function updateGlobalProgressLocally(word, type, isCorrect, profLevel, speakSim) {
       let p = globalProgressData.find(item => item.word === word && item.lang === currentSheetName);
       if (!p) {
@@ -1780,6 +1733,7 @@
       setTimeout(function() { document.getElementById('choiceWordDisplay').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
     }
 
+    // 💡 關鍵修復：改用最安全的 Try...Catch 和獨立變數，防止舊手機瀏覽器報錯！
     function checkChoice(btnElement, isCorrect) {
       var buttons = document.getElementById('choiceOptions').querySelectorAll('.option-btn');
       for (var i = 0; i < buttons.length; i++) {
@@ -1791,27 +1745,29 @@
       var feedback = document.getElementById('choiceFeedback');
       let nextRev = '';
 
-      if (isCorrect) {
-        btnElement.classList.add('correct');
-        feedback.innerText = '答對了！'; feedback.className = 'feedback success';
-        currentQuizItem.choiceCorrect++;
-        let p = globalProgressData.find(item => item.word === currentQuizItem.word && item.lang === currentSheetName);
-        if(!p) { p = { lang: currentSheetName, word: currentQuizItem.word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '', aiWordFeedback: '', aiExampleFeedback: '', aiWordAudioUrl: '', aiExampleAudioUrl: '', aiSentence: '', aiMnemonic: '' }; globalProgressData.push(p); }
-        p.cCorrect++;
-        
-        nextRev = applyQuizProficiency(currentQuizItem, '熟練');
-        updateBackend(currentQuizItem.word, true, null, 'choice', '熟練', nextRev); 
-      } else {
-        btnElement.classList.add('wrong');
-        feedback.innerText = '答錯了！正確答案是：' + currentQuizItem.translation; feedback.className = 'feedback danger';
-        currentQuizItem.choiceIncorrect++;
-        let p = globalProgressData.find(item => item.word === currentQuizItem.word && item.lang === currentSheetName);
-        if(!p) { p = { lang: currentSheetName, word: currentQuizItem.word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '', aiWordFeedback: '', aiExampleFeedback: '', aiWordAudioUrl: '', aiExampleAudioUrl: '', aiSentence: '', aiMnemonic: '' }; globalProgressData.push(p); }
-        p.cIncorrect++;
-        
-        nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
-        updateBackend(currentQuizItem.word, false, null, 'choice', '完全忘記', nextRev);
+      try {
+          if (isCorrect) {
+            btnElement.classList.add('correct');
+            feedback.innerText = '答對了！'; feedback.className = 'feedback success';
+            currentQuizItem.choiceCorrect++;
+            updateGlobalProgressLocally(currentQuizItem.word, 'choice', true, null);
+            
+            nextRev = applyQuizProficiency(currentQuizItem, '熟練');
+            updateBackend(currentQuizItem.word, true, null, 'choice', '熟練', nextRev); 
+          } else {
+            btnElement.classList.add('wrong');
+            feedback.innerText = '答錯了！正確答案是：' + currentQuizItem.translation; feedback.className = 'feedback danger';
+            currentQuizItem.choiceIncorrect++;
+            updateGlobalProgressLocally(currentQuizItem.word, 'choice', false, null);
+            
+            nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
+            updateBackend(currentQuizItem.word, false, null, 'choice', '完全忘記', nextRev);
+          }
+      } catch(e) {
+          console.error(e);
       }
+
+      // 💡 按鈕顯示指令絕對會執行！
       document.getElementById('choiceNextBtn').style.display = 'block';
       setTimeout(function() { document.getElementById('choiceNextBtn').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
     }
@@ -1868,6 +1824,7 @@
       setTimeout(function() { document.getElementById('spellingTranslation').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
     }
 
+    // 💡 關鍵修復：用 Try...Catch 確保流程順暢
     function checkSpelling() {
       var inputEl = document.getElementById('spellingInput');
       var userInput = inputEl.value.trim().toLowerCase();
@@ -1885,68 +1842,69 @@
       var feedback = document.getElementById('spellingFeedback');
       let nextRev = '';
 
-      if (isCorrect) {
-        feedback.innerText = '拼字正確！'; feedback.className = 'feedback success';
-        inputEl.classList.remove('error-input');
-        currentQuizItem.spellCorrect++;
-        let p = globalProgressData.find(item => item.word === currentQuizItem.word && item.lang === currentSheetName);
-        if(!p) { p = { lang: currentSheetName, word: currentQuizItem.word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '', aiWordFeedback: '', aiExampleFeedback: '', aiWordAudioUrl: '', aiExampleAudioUrl: '', aiSentence: '', aiMnemonic: '' }; globalProgressData.push(p); }
-        p.sCorrect++;
-        
-        nextRev = applyQuizProficiency(currentQuizItem, '熟練');
-        updateBackend(currentQuizItem.word, true, null, 'spelling', '熟練', nextRev); 
-      } else {
-        inputEl.classList.add('shake', 'error-input');
-        setTimeout(function() { inputEl.classList.remove('shake'); }, 400); 
-        
-        var errorMsg = '拼字錯誤！正確拼法為：' + currentQuizItem.word;
-        if (currentQuizItem.kanji) errorMsg += ' 或 ' + currentQuizItem.kanji;
-        if (currentQuizItem.errorLog) {
-          var pastErrors = currentQuizItem.errorLog.split(',');
-          var lastError = pastErrors[pastErrors.length - 1].trim();
-          if (lastError) errorMsg += '\n(上次錯拼為：' + lastError + ')';
-        }
-        feedback.innerText = errorMsg; feedback.className = 'feedback danger';
-        currentQuizItem.errorLog = currentQuizItem.errorLog ? currentQuizItem.errorLog + ', ' + userInput : userInput;
-        
-        let spellingMnemonicBtn = document.getElementById('spellingMnemonicBtn');
-        spellingMnemonicBtn.style.display = 'inline-block';
-        if (userRole === 'premium' || userRole === 'admin') {
-            spellingMnemonicBtn.innerText = "🆘 忘記了？AI 救救我";
-            spellingMnemonicBtn.onclick = function() { getAITextAssistant('spelling_mnemonic'); };
-            spellingMnemonicBtn.style.opacity = "1";
-        } else {
-            spellingMnemonicBtn.innerText = "🔒 忘記了？AI 救救我";
-            spellingMnemonicBtn.onclick = function() { showToast('請升級 Premium 解鎖 AI 助理', 'warn'); };
-            spellingMnemonicBtn.style.opacity = "0.6";
-        }
+      try {
+          if (isCorrect) {
+            feedback.innerText = '拼字正確！'; feedback.className = 'feedback success';
+            inputEl.classList.remove('error-input');
+            currentQuizItem.spellCorrect++;
+            updateGlobalProgressLocally(currentQuizItem.word, 'spelling', true, null);
+            
+            nextRev = applyQuizProficiency(currentQuizItem, '熟練');
+            updateBackend(currentQuizItem.word, true, null, 'spelling', '熟練', nextRev); 
+          } else {
+            inputEl.classList.add('shake', 'error-input');
+            setTimeout(function() { inputEl.classList.remove('shake'); }, 400); 
+            
+            var errorMsg = '拼字錯誤！正確拼法為：' + currentQuizItem.word;
+            if (currentQuizItem.kanji) errorMsg += ' 或 ' + currentQuizItem.kanji;
+            if (currentQuizItem.errorLog) {
+              var pastErrors = currentQuizItem.errorLog.split(',');
+              var lastError = pastErrors[pastErrors.length - 1].trim();
+              if (lastError) errorMsg += '\n(上次錯拼為：' + lastError + ')';
+            }
+            feedback.innerText = errorMsg; feedback.className = 'feedback danger';
+            currentQuizItem.errorLog = currentQuizItem.errorLog ? currentQuizItem.errorLog + ', ' + userInput : userInput;
+            
+            let spellingMnemonicBtn = document.getElementById('spellingMnemonicBtn');
+            spellingMnemonicBtn.style.display = 'inline-block';
+            if (userRole === 'premium' || userRole === 'admin') {
+                spellingMnemonicBtn.innerText = "🆘 忘記了？AI 救救我";
+                spellingMnemonicBtn.onclick = function() { getAITextAssistant('spelling_mnemonic'); };
+                spellingMnemonicBtn.style.opacity = "1";
+            } else {
+                spellingMnemonicBtn.innerText = "🔒 忘記了？AI 救救我";
+                spellingMnemonicBtn.onclick = function() { showToast('請升級 Premium 解鎖 AI 助理', 'warn'); };
+                spellingMnemonicBtn.style.opacity = "0.6";
+            }
 
-        let spellMbox = document.getElementById('spellingMnemonicBox');
-        if (currentQuizItem.aiMnemonic) {
-            spellMbox.style.display = 'block';
-            spellMbox.innerHTML = `💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(currentQuizItem.aiMnemonic)}`;
-        }
-        
-        currentQuizItem.spellIncorrect++;
-        let p = globalProgressData.find(item => item.word === currentQuizItem.word && item.lang === currentSheetName);
-        if(!p) { p = { lang: currentSheetName, word: currentQuizItem.word, cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '', aiWordFeedback: '', aiExampleFeedback: '', aiWordAudioUrl: '', aiExampleAudioUrl: '', aiSentence: '', aiMnemonic: '' }; globalProgressData.push(p); }
-        p.sIncorrect++;
-        
-        nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
-        updateBackend(currentQuizItem.word, false, userInput, 'spelling', '完全忘記', nextRev); 
-        
-        if (userRole === 'premium' || userRole === 'admin') {
-             let aiDiv = document.createElement('div');
-             aiDiv.style.marginTop = "0.8rem"; aiDiv.style.color = "var(--premium)"; aiDiv.style.fontSize = "0.95rem";
-             aiDiv.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 分析錯因中...';
-             feedback.appendChild(aiDiv);
+            let spellMbox = document.getElementById('spellingMnemonicBox');
+            if (currentQuizItem.aiMnemonic) {
+                spellMbox.style.display = 'block';
+                spellMbox.innerHTML = `💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(currentQuizItem.aiMnemonic)}`;
+            }
+            
+            currentQuizItem.spellIncorrect++;
+            updateGlobalProgressLocally(currentQuizItem.word, 'spelling', false, null);
+            
+            nextRev = applyQuizProficiency(currentQuizItem, '完全忘記');
+            updateBackend(currentQuizItem.word, false, userInput, 'spelling', '完全忘記', nextRev); 
+            
+            if (userRole === 'premium' || userRole === 'admin') {
+                 let aiDiv = document.createElement('div');
+                 aiDiv.style.marginTop = "0.8rem"; aiDiv.style.color = "var(--premium)"; aiDiv.style.fontSize = "0.95rem";
+                 aiDiv.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 分析錯因中...';
+                 feedback.appendChild(aiDiv);
 
-             apiCall('getAIAssistant', { taskType: 'spelling', word: currentQuizItem.word, lang: currentSheetName, extraInfo: userInput, userRole: userRole }, function(res) {
-                 if (res.success) aiDiv.innerHTML = `🤖 <b>AI 抓漏：</b> ${res.reply}`;
-                 else aiDiv.remove();
-             }, function(err) { aiDiv.remove(); });
-        }
+                 apiCall('getAIAssistant', { taskType: 'spelling', word: currentQuizItem.word, lang: currentSheetName, extraInfo: userInput, userRole: userRole }, function(res) {
+                     if (res.success) aiDiv.innerHTML = `🤖 <b>AI 抓漏：</b> ${res.reply}`;
+                     else aiDiv.remove();
+                 }, function(err) { aiDiv.remove(); });
+            }
+          }
+      } catch (e) {
+          console.error(e);
       }
+
       document.getElementById('spellingNextBtn').style.display = 'block';
       if (window.innerWidth > 768) document.getElementById('spellingNextBtn').focus(); 
       setTimeout(function() { document.getElementById('spellingNextBtn').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
