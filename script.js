@@ -16,9 +16,9 @@ var userRole = 'free';
 var isCurrentWordAnswered = false; 
 
 // --------------------------------------------------------
-// 💡 萬能 AI 文字助理引擎
+// 💡 萬能 AI 文字助理引擎 (包含即時錯字分析與記憶法)
 // --------------------------------------------------------
-function getAITextAssistant(taskType) {
+function getAITextAssistant(taskType, userInput = '') {
     if (userRole !== 'premium' && userRole !== 'admin') {
         showToast('🔒 此為 Premium 專屬功能，請升級解鎖！', 'warn');
         return;
@@ -57,24 +57,72 @@ function getAITextAssistant(taskType) {
             btn.innerText = originalText; btn.disabled = false; showToast("連線失敗", "danger");
         });
     } 
-    else if (taskType === 'mnemonic' || taskType === 'spelling_mnemonic') {
-        let boxId = taskType === 'mnemonic' ? 'aiMnemonicBox' : 'spellingMnemonicBox';
-        let box = document.getElementById(boxId);
+    // 💡 即時拼字錯誤分析 (不存檔)
+    else if (taskType === 'spelling_analysis') {
+        let btn = document.getElementById('spellingAnalysisBtn');
+        btn.innerText = "⏳ 老師分析中...";
+        btn.disabled = true;
+
+        let box = document.getElementById('spellingAnalysisBox');
         box.style.display = 'block';
-        box.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 正在發功找記憶法...';
+        box.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--danger);"></div> 正在抓出你的拼字盲點...';
+
+        apiCall('getAIAssistant', { taskType: 'spelling', word: word, lang: lang, extraInfo: userInput, userRole: userRole }, function(res) {
+            btn.style.display = 'none'; 
+            if(res.success) {
+                box.innerHTML = `🕵️‍♂️ <b>AI 抓漏：</b><br>${marked.parse(res.reply)}`;
+            } else box.innerHTML = `❌ ${res.message}`;
+        }, function(err) { 
+            box.innerHTML = `❌ 連線失敗`; 
+            btn.innerText = "🕵️‍♂️ 分析我為什麼拼錯"; 
+            btn.disabled = false; 
+        });
+    }
+    // 💡 記憶法 (會存入 R 欄)
+    else if (taskType === 'mnemonic' || taskType === 'spelling_mnemonic') {
+        let box = taskType === 'mnemonic' ? document.getElementById('aiMnemonicBox') : document.getElementById('spellingMnemonicBox');
         
-        // 💡 點擊後隱藏按鈕，避免重複呼叫
-        if (taskType === 'spelling_mnemonic') document.getElementById('spellingMnemonicBtn').style.display = 'none';
-        if (taskType === 'mnemonic') document.getElementById('aiMnemonicBtn').style.display = 'none';
+        box.style.display = 'block';
+        if (taskType === 'spelling_mnemonic') {
+            box.innerHTML += '<div id="tempMnemonicLoader"><div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 正在發功找記憶法...</div>';
+        } else {
+            box.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 正在發功找記憶法...';
+        }
+        
+        if (taskType === 'mnemonic') {
+            let btn = document.getElementById('aiMnemonicBtn');
+            if(btn) btn.style.display = 'none';
+        } else {
+            let btn = document.getElementById('spellingMnemonicBtn');
+            if(btn) btn.style.display = 'none';
+        }
 
         apiCall('getAIAssistant', { taskType: 'mnemonic', word: word, lang: lang, userRole: userRole }, function(res) {
+            let loader = document.getElementById('tempMnemonicLoader');
+            if(loader) loader.remove();
+
             if(res.success) {
-                box.innerHTML = `💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(res.reply)}`;
+                let mnemonicHtml = `<div style="margin-top: 1rem;">💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(res.reply)}</div>`;
+                if (taskType === 'spelling_mnemonic') {
+                    box.innerHTML += mnemonicHtml;
+                } else {
+                    box.innerHTML = mnemonicHtml;
+                }
+                
                 currentQuizItem.aiMnemonic = res.reply;
                 updateGlobalProgressLocallyText(word, 'mnemonic', res.reply);
                 apiCall('saveAIText', {sheetName: currentSheetName, word: word, username: currentUser, textType: 'mnemonic', textData: res.reply});
-            } else box.innerHTML = `❌ ${res.message}`;
-        }, function(err) { box.innerHTML = `❌ 連線失敗`; });
+            } else {
+                if (taskType === 'spelling_mnemonic') box.innerHTML += `<div>❌ ${res.message}</div>`;
+                else box.innerHTML = `❌ ${res.message}`;
+            }
+        }, function(err) { 
+            let loader = document.getElementById('tempMnemonicLoader');
+            if(loader) loader.remove();
+            
+            if (taskType === 'spelling_mnemonic') box.innerHTML += `<div>❌ 連線失敗</div>`;
+            else box.innerHTML = `❌ 連線失敗`;
+        });
     }
 }
 
@@ -255,7 +303,7 @@ function checkAutoLogin() {
 
   if (savedUser && savedRole && loginTime) {
     const now = new Date().getTime();
-    const oneWeek = 7 * 24 * 60 * 60 * 1000; // 7天的毫秒數
+    const oneWeek = 7 * 24 * 60 * 60 * 1000; 
 
     if (now - parseInt(loginTime) < oneWeek) {
       currentUser = savedUser;
@@ -736,7 +784,7 @@ function startApp() {
 }
 
 window.onload = function() {
-  checkAutoLogin(); // 載入時觸發自動登入檢查
+  checkAutoLogin(); 
 
   var inputEl = document.getElementById('spellingInput');
   if(inputEl) {
@@ -864,7 +912,6 @@ function initApp() {
   switchTab('browse');
 }
 
-// 💡 物理刪除法 + 強制單行：徹底解決手機快取和破圖問題！
 function renderDashboard() {
   let totalLearned = 0;
   let totalCorrect = 0, totalWrong = 0;
@@ -875,7 +922,7 @@ function renderDashboard() {
       '英文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
       '日文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
       '泰文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
-      '越南文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 }// 🌟 補上這一行
+      '越南文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 }
   };
 
   try {
@@ -1408,6 +1455,8 @@ function loadNextSpelling() {
   
   var exampleHtml = currentQuizItem.example;
   var ttsText = currentQuizItem.example; 
+  
+  // 💡 還原成只讀取 D 欄的 [ ] 判斷邏輯
   if (exampleHtml) {
     if (exampleHtml.indexOf('[') !== -1 && exampleHtml.indexOf(']') !== -1) {
       ttsText = exampleHtml.replace(/\[|\]/g, '');
@@ -1417,6 +1466,7 @@ function loadNextSpelling() {
       exampleHtml = exampleHtml.replace(regex, '________');
     }
   }
+  
   var exampleEl = document.getElementById('spellingExample');
   exampleEl.innerText = exampleHtml;
   exampleEl.setAttribute('data-fulltext', ttsText);
@@ -1428,12 +1478,12 @@ function loadNextSpelling() {
   if (window.innerWidth > 768) inputEl.focus(); 
   else inputEl.blur(); 
 
-  let spellingMnemonicBtn = document.getElementById('spellingMnemonicBtn');
-  spellingMnemonicBtn.style.display = 'none';
-
+  // 重置 AI 區塊
   let spellMbox = document.getElementById('spellingMnemonicBox');
-  spellMbox.style.display = 'none';
-  spellMbox.innerHTML = '';
+  if(spellMbox) {
+      spellMbox.style.display = 'none';
+      spellMbox.innerHTML = '';
+  }
   
   document.getElementById('spellingFeedback').innerText = '';
   document.getElementById('spellingSubmitBtn').style.display = 'block';
@@ -1487,26 +1537,40 @@ function checkSpelling() {
         feedback.innerText = errorMsg; feedback.className = 'feedback danger';
         currentQuizItem.errorLog = currentQuizItem.errorLog ? currentQuizItem.errorLog + ', ' + userInput : userInput;
         
-        let spellingMnemonicBtn = document.getElementById('spellingMnemonicBtn');
+        // 💡 動態生成「即時分析按鈕」與「專屬顯示區塊」
         let spellMbox = document.getElementById('spellingMnemonicBox');
+        if (!spellMbox) {
+            spellMbox = document.createElement('div');
+            spellMbox.id = 'spellingMnemonicBox';
+            spellMbox.className = 'ai-feedback-box';
+            spellMbox.style.marginBottom = '1.5rem';
+            spellMbox.style.borderRadius = '0.5rem';
+            // 將它插入到 feedback 區塊的下方
+            document.getElementById('spellingFeedback').parentNode.insertBefore(spellMbox, document.getElementById('spellingNextBtn'));
+        }
+        
+        // 先把錯字中的單引號濾掉，避免破壞 HTML 屬性
+        let safeUserInput = userInput.replace(/'/g, "\\'"); 
+        
+        let analysisHtml = `
+            <div style="text-align: right; margin-bottom: 0.5rem;">
+                <button id="spellingAnalysisBtn" class="btn-skip" style="font-size: 0.85rem; color: var(--danger); border-color: var(--danger);" onclick="getAITextAssistant('spelling_analysis', '${safeUserInput}')">🕵️‍♂️ 分析我為什麼拼錯</button>
+            </div>
+            <div id="spellingAnalysisBox" class="ai-feedback-box" style="margin-bottom: 1rem; border-left-color: var(--danger); color: #7f1d1d; background: #fef2f2; display:none;"></div>
+        `;
 
-        // 💡 防劇透核心邏輯：如果已經有 AI 記憶法，直接顯示，並隱藏按鈕
+        let mnemonicBtnHtml = '';
         if (currentQuizItem.aiMnemonic) {
+            spellMbox.innerHTML = analysisHtml + `<div style="margin-top: 1rem;">💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(currentQuizItem.aiMnemonic)}</div>`;
             spellMbox.style.display = 'block';
-            spellMbox.innerHTML = `💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(currentQuizItem.aiMnemonic)}`;
-            spellingMnemonicBtn.style.display = 'none';
         } else {
-            // 如果沒有記憶法，就顯示按鈕讓使用者可以點擊呼叫
-            spellingMnemonicBtn.style.display = 'inline-block';
             if (userRole === 'premium' || userRole === 'admin') {
-                spellingMnemonicBtn.innerText = "🆘 忘記了？AI 救救我";
-                spellingMnemonicBtn.onclick = function() { getAITextAssistant('spelling_mnemonic'); };
-                spellingMnemonicBtn.style.opacity = "1";
+                mnemonicBtnHtml = `<button id="spellingMnemonicBtn" class="btn-skip" style="font-size: 0.85rem; color: var(--premium); border-color: var(--premium);" onclick="getAITextAssistant('spelling_mnemonic')">🆘 產生 AI 記憶法</button>`;
             } else {
-                spellingMnemonicBtn.innerText = "🔒 忘記了？AI 救救我";
-                spellingMnemonicBtn.onclick = function() { showToast('請升級 Premium 解鎖 AI 助理', 'warn'); };
-                spellingMnemonicBtn.style.opacity = "0.6";
+                mnemonicBtnHtml = `<button id="spellingMnemonicBtn" class="btn-skip" style="font-size: 0.85rem; color: var(--premium); border-color: var(--premium); opacity: 0.6;" onclick="showToast('請升級 Premium 解鎖 AI 助理', 'warn')">🔒 產生 AI 記憶法</button>`;
             }
+            spellMbox.innerHTML = analysisHtml + `<div style="text-align: right; margin-bottom: 1rem;">${mnemonicBtnHtml}</div>`;
+            spellMbox.style.display = 'block';
         }
         
         currentQuizItem.spellIncorrect++;
