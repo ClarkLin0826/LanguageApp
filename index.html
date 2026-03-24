@@ -473,85 +473,8 @@
     // ⚠️ 記得把這裡換回你專屬的 Google API 網址 ⚠️
     const API_URL = "https://script.google.com/macros/s/AKfycbwfysuXE77bR2x8YuK2bRHL9aPKNyxj2zug2MXBO6Km0mZbamXbAzaF_oqZwEOCjzEdvQ/exec";
 
-    let currentPlaybackAudio = null;
-    let currentPlaybackBtn = null;
-    let originalBtnText = "";
-
-    function playAudio(btn, type, data) {
-        if (currentPlaybackAudio) {
-            currentPlaybackAudio.pause();
-            if (currentPlaybackBtn) currentPlaybackBtn.innerText = originalBtnText;
-            if (currentPlaybackBtn === btn) {
-                currentPlaybackAudio = null;
-                currentPlaybackBtn = null;
-                return;
-            }
-        }
-
-        currentPlaybackBtn = btn;
-        originalBtnText = btn.innerText;
-
-        // 💡 預先建立 Audio 物件，綁定使用者點擊事件，突破手機播放限制
-        currentPlaybackAudio = new Audio();
-
-        if (type === 'local') {
-            btn.innerText = "🔊 播放中...";
-            currentPlaybackAudio.src = data;
-            currentPlaybackAudio.onended = () => { 
-                if(currentPlaybackBtn === btn) { btn.innerText = originalBtnText; currentPlaybackBtn = null; }
-            };
-            currentPlaybackAudio.play().catch(e => {
-                showToast("播放失敗，請檢查權限", "danger");
-                btn.innerText = originalBtnText;
-            });
-        } else if (type === 'cloud') {
-            btn.innerText = "⏳ 讀取中...";
-            btn.disabled = true;
-            
-            apiCall('getAudio', { audioUrl: data }, function(res) {
-                if (res.success) {
-                    if (currentPlaybackBtn !== btn) return; 
-                    
-                    // 💡 終極解法：將 Base64 轉回 Blob，徹底解決手機瀏覽器 Data URI 解碼卡死問題
-                    let mime = res.mimeType;
-                    if (mime.indexOf('audio') === -1) mime = 'audio/webm'; // 強制校正
-                    
-                    try {
-                        const byteCharacters = atob(res.base64);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                            byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], {type: mime});
-                        const blobUrl = URL.createObjectURL(blob);
-                        
-                        currentPlaybackAudio.src = blobUrl;
-                        btn.innerText = "🔊 播放中...";
-                        btn.disabled = false;
-                        
-                        currentPlaybackAudio.onended = () => { 
-                            if(currentPlaybackBtn === btn) { btn.innerText = originalBtnText; currentPlaybackBtn = null; }
-                        };
-                        currentPlaybackAudio.play().catch(e => {
-                            showToast("播放失敗：" + e.message, "danger");
-                            btn.innerText = originalBtnText;
-                        });
-                    } catch(err) {
-                        showToast("音檔解析失敗", "danger");
-                        btn.innerText = originalBtnText;
-                        btn.disabled = false;
-                    }
-                } else {
-                    btn.innerText = "❌ 讀取失敗"; btn.disabled = false;
-                    setTimeout(() => { if(currentPlaybackBtn === btn) btn.innerText = originalBtnText; }, 2000);
-                }
-            }, function(err) {
-                btn.innerText = "❌ 連線失敗"; btn.disabled = false;
-                setTimeout(() => { if(currentPlaybackBtn === btn) btn.innerText = originalBtnText; }, 2000);
-            });
-        }
-    }
+    var accuracyChartInstance = null;
+    var profChartInstance = null;
 
     var allVocabData = []; 
     var vocabData = [];
@@ -564,6 +487,9 @@
     var userRole = 'free'; 
     var isCurrentWordAnswered = false; 
 
+    // --------------------------------------------------------
+    // 💡 萬能 AI 文字助理引擎
+    // --------------------------------------------------------
     function getAITextAssistant(taskType) {
         if (userRole !== 'premium' && userRole !== 'admin') {
             showToast('🔒 此為 Premium 專屬功能，請升級解鎖！', 'warn');
@@ -630,6 +556,117 @@
         if(type === 'mnemonic') p.aiMnemonic = text;
     }
 
+    // --------------------------------------------------------
+    // 💡 終極 AudioContext 音頻解碼引擎：秒殺 WebM 播放天坑
+    // --------------------------------------------------------
+    let audioCtx = null;
+    let currentAudioSource = null;
+    let currentPlaybackAudio = null;
+    let currentPlaybackBtn = null;
+    let originalBtnText = "";
+
+    function playAudio(btn, type, data) {
+        // 初始化 Web Audio API (繞過手機靜音限制)
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
+        // 停止任何正在播放的聲音
+        if (currentPlaybackAudio) {
+            currentPlaybackAudio.pause();
+            currentPlaybackAudio = null;
+        }
+        if (currentAudioSource) {
+            try { currentAudioSource.stop(); } catch(e){}
+            currentAudioSource = null;
+        }
+
+        if (currentPlaybackBtn) {
+            currentPlaybackBtn.innerText = originalBtnText;
+            currentPlaybackBtn.disabled = false;
+        }
+
+        if (currentPlaybackBtn === btn) {
+            currentPlaybackBtn = null;
+            return; // 這是「切換停止」的邏輯
+        }
+
+        currentPlaybackBtn = btn;
+        originalBtnText = btn.innerText;
+
+        if (type === 'local') {
+            btn.innerText = "🔊 播放中...";
+            currentPlaybackAudio = new Audio(data);
+            currentPlaybackAudio.onended = () => { 
+                if(currentPlaybackBtn === btn) { btn.innerText = originalBtnText; currentPlaybackBtn = null; }
+            };
+            currentPlaybackAudio.play().catch(e => {
+                showToast("播放失敗", "danger");
+                btn.innerText = originalBtnText;
+            });
+        } else if (type === 'cloud') {
+            btn.innerText = "⏳ 讀取中...";
+            btn.disabled = true;
+            
+            apiCall('getAudio', { audioUrl: data }, function(res) {
+                if (res.success) {
+                    if (currentPlaybackBtn !== btn) return; 
+                    
+                    btn.innerText = "⏳ 轉碼中...";
+                    try {
+                        // 1. Base64 轉成二進位陣列
+                        const binaryString = atob(res.base64);
+                        const len = binaryString.length;
+                        const bytes = new Uint8Array(len);
+                        for (let i = 0; i < len; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+                        
+                        // 2. 暴力破解解碼音軌 (無視 WebM 封裝錯誤)
+                        audioCtx.decodeAudioData(bytes.buffer, function(buffer) {
+                            if (currentPlaybackBtn !== btn) return; 
+
+                            currentAudioSource = audioCtx.createBufferSource();
+                            currentAudioSource.buffer = buffer;
+                            currentAudioSource.connect(audioCtx.destination);
+                            
+                            currentAudioSource.onended = () => {
+                                if(currentPlaybackBtn === btn) { 
+                                    btn.innerText = originalBtnText; 
+                                    currentPlaybackBtn = null; 
+                                    btn.disabled = false;
+                                }
+                            };
+                            
+                            btn.innerText = "🔊 播放中...";
+                            btn.disabled = false;
+                            currentAudioSource.start(0);
+                            
+                        }, function(err) {
+                            showToast("音軌解碼失敗", "danger");
+                            btn.innerText = originalBtnText;
+                            btn.disabled = false;
+                        });
+                    } catch(err) {
+                        showToast("音檔解析錯誤", "danger");
+                        btn.innerText = originalBtnText;
+                        btn.disabled = false;
+                    }
+                } else {
+                    btn.innerText = "❌ 讀取失敗"; btn.disabled = false;
+                    setTimeout(() => { if(currentPlaybackBtn === btn) btn.innerText = originalBtnText; }, 2000);
+                }
+            }, function(err) {
+                btn.innerText = "❌ 連線失敗"; btn.disabled = false;
+                setTimeout(() => { if(currentPlaybackBtn === btn) btn.innerText = originalBtnText; }, 2000);
+            });
+        }
+    }
+    // --------------------------------------------------------
+
     function showToast(message, type = 'info') {
       let container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -666,7 +703,7 @@
 
     function apiCall(action, payload, onSuccess, onError) {
       if (API_URL.includes("請把你的")) {
-         showToast("請先在原始碼第 603 行替換你的 API_URL！", "danger");
+         showToast("請先在原始碼第 605 行替換你的 API_URL！", "danger");
          return;
       }
       payload.action = action;
