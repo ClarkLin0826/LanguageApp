@@ -874,7 +874,8 @@ function renderDashboard() {
       '韓文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
       '英文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
       '日文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
-      '泰文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 }
+      '泰文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 },
+      '越南文': { count: 0, correct: 0, wrong: 0, prof3: 0, prof2: 0, prof1: 0, speakSimSum: 0, speakSimCount: 0 }// 🌟 補上這一行
   };
 
   try {
