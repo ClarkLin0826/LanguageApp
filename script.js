@@ -245,6 +245,41 @@ function apiCall(action, payload, onSuccess, onError) {
   .catch(error => { console.error('API 錯誤:', error); if(onError) onError(error); });
 }
 
+// --------------------------------------------------------
+// 💡 帳號登入與記憶功能
+// --------------------------------------------------------
+function checkAutoLogin() {
+  const savedUser = localStorage.getItem('vocab_user');
+  const savedRole = localStorage.getItem('vocab_role');
+  const loginTime = localStorage.getItem('vocab_time');
+
+  if (savedUser && savedRole && loginTime) {
+    const now = new Date().getTime();
+    const oneWeek = 7 * 24 * 60 * 60 * 1000; // 7天的毫秒數
+
+    if (now - parseInt(loginTime) < oneWeek) {
+      currentUser = savedUser;
+      userRole = savedRole;
+      
+      document.getElementById('userBadge').innerText = "👤 " + currentUser;
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('welcomeScreen').style.display = 'flex';
+      
+      showToast(`歡迎回來，${currentUser}！`, 'success');
+      return true;
+    } else {
+      clearAuthData();
+    }
+  }
+  return false;
+}
+
+function clearAuthData() {
+  localStorage.removeItem('vocab_user');
+  localStorage.removeItem('vocab_role');
+  localStorage.removeItem('vocab_time');
+}
+
 function toggleAuthMode(mode) {
   if(mode === 'login') {
     document.getElementById('loginBox').style.display = 'flex';
@@ -291,6 +326,11 @@ function doLogin() {
     if(res.success) {
        currentUser = u;
        userRole = res.role; 
+       
+       localStorage.setItem('vocab_user', currentUser);
+       localStorage.setItem('vocab_role', userRole);
+       localStorage.setItem('vocab_time', new Date().getTime().toString());
+
        showToast(`歡迎回來，${u}！`, 'success');
        
        document.getElementById('userBadge').innerText = "👤 " + u;
@@ -310,6 +350,8 @@ function doLogout() {
   vocabData = [];
   globalProgressData = [];
   document.getElementById('loginPass').value = '';
+  
+  clearAuthData();
   
   document.getElementById('startAppBtn').style.display = 'block';
   document.getElementById('welcomeLoader').style.display = 'none';
@@ -694,6 +736,8 @@ function startApp() {
 }
 
 window.onload = function() {
+  checkAutoLogin(); // 載入時觸發自動登入檢查
+
   var inputEl = document.getElementById('spellingInput');
   if(inputEl) {
     inputEl.addEventListener('keypress', function(e) {
