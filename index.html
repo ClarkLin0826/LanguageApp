@@ -400,7 +400,7 @@
           <div class="input-hint" id="spellingHint" style="margin-bottom:0.5rem;">💡 提示：請填寫單字原型 (字典型態)</div>
           
           <div style="text-align: right; margin-bottom: 1rem;">
-             <button id="spellingMnemonicBtn" class="btn-skip" style="font-size: 0.85rem; color: var(--premium); border-color: var(--premium);">🆘 忘記了？AI 救救我</button>
+             <button id="spellingMnemonicBtn" class="btn-skip" style="font-size: 0.85rem; color: var(--premium); border-color: var(--premium); display:none;">🆘 忘記了？AI 救救我</button>
           </div>
           <div id="spellingMnemonicBox" class="ai-feedback-box" style="margin-bottom: 1.5rem; border-radius: 0.5rem; display:none;"></div>
 
@@ -472,6 +472,10 @@
   <script>
     // ⚠️ 記得把這裡換回你專屬的 Google API 網址 ⚠️
     const API_URL = "https://script.google.com/macros/s/AKfycbwfysuXE77bR2x8YuK2bRHL9aPKNyxj2zug2MXBO6Km0mZbamXbAzaF_oqZwEOCjzEdvQ/exec";
+
+    // 💡 補回不小心刪掉的圖表變數宣告
+    var accuracyChartInstance = null;
+    var profChartInstance = null;
 
     var allVocabData = []; 
     var vocabData = [];
@@ -1767,6 +1771,7 @@
       setTimeout(function() { document.getElementById('choiceNextBtn').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
     }
 
+    // 💡 防劇透更新：載入拼字題時，強制隱藏 AI 相關按鈕與內容
     function loadNextSpelling() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if(vocabData.length === 0) return;
@@ -1800,25 +1805,14 @@
       if (window.innerWidth > 768) inputEl.focus(); 
       else inputEl.blur(); 
 
+      // 💡 關鍵更新：載入題目時，完全隱藏 AI 救救我按鈕
       let spellingMnemonicBtn = document.getElementById('spellingMnemonicBtn');
-      if (userRole === 'premium' || userRole === 'admin') {
-          spellingMnemonicBtn.innerText = "🆘 忘記了？AI 救救我";
-          spellingMnemonicBtn.onclick = function() { getAITextAssistant('spelling_mnemonic'); };
-          spellingMnemonicBtn.style.opacity = "1";
-      } else {
-          spellingMnemonicBtn.innerText = "🔒 忘記了？AI 救救我";
-          spellingMnemonicBtn.onclick = function() { showToast('請升級 Premium 解鎖 AI 助理', 'warn'); };
-          spellingMnemonicBtn.style.opacity = "0.6";
-      }
+      spellingMnemonicBtn.style.display = 'none';
 
+      // 💡 關鍵更新：載入題目時，完全隱藏已有的 AI 記憶法內容
       let spellMbox = document.getElementById('spellingMnemonicBox');
-      if (currentQuizItem.aiMnemonic) {
-          spellMbox.style.display = 'block';
-          spellMbox.innerHTML = `💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(currentQuizItem.aiMnemonic)}`;
-      } else {
-          spellMbox.style.display = 'none';
-          spellMbox.innerHTML = '';
-      }
+      spellMbox.style.display = 'none';
+      spellMbox.innerHTML = '';
       
       document.getElementById('spellingFeedback').innerText = '';
       document.getElementById('spellingSubmitBtn').style.display = 'block';
@@ -1872,6 +1866,26 @@
         }
         feedback.innerText = errorMsg; feedback.className = 'feedback danger';
         currentQuizItem.errorLog = currentQuizItem.errorLog ? currentQuizItem.errorLog + ', ' + userInput : userInput;
+        
+        // 💡 防劇透更新：只有在「答錯」時，才顯示 AI 救救我按鈕
+        let spellingMnemonicBtn = document.getElementById('spellingMnemonicBtn');
+        spellingMnemonicBtn.style.display = 'inline-block';
+        if (userRole === 'premium' || userRole === 'admin') {
+            spellingMnemonicBtn.innerText = "🆘 忘記了？AI 救救我";
+            spellingMnemonicBtn.onclick = function() { getAITextAssistant('spelling_mnemonic'); };
+            spellingMnemonicBtn.style.opacity = "1";
+        } else {
+            spellingMnemonicBtn.innerText = "🔒 忘記了？AI 救救我";
+            spellingMnemonicBtn.onclick = function() { showToast('請升級 Premium 解鎖 AI 助理', 'warn'); };
+            spellingMnemonicBtn.style.opacity = "0.6";
+        }
+
+        // 💡 防劇透更新：只有在「答錯」時，才顯示已儲存的 AI 記憶法
+        let spellMbox = document.getElementById('spellingMnemonicBox');
+        if (currentQuizItem.aiMnemonic) {
+            spellMbox.style.display = 'block';
+            spellMbox.innerHTML = `💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(currentQuizItem.aiMnemonic)}`;
+        }
         
         currentQuizItem.spellIncorrect++;
         let p = globalProgressData.find(item => item.word === currentQuizItem.word && item.lang === currentSheetName);
