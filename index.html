@@ -114,7 +114,6 @@
     .error-msg { color: var(--danger); font-weight: bold; margin-top: 0.5rem;}
     .shortcut-hint { font-size: 0.8rem; color: var(--text-light); text-align: center; margin-top: 1.5rem; border-top: 1px dashed #e5e7eb; padding-top: 0.5rem; }
 
-    /* 確保所有圖表在所有設備上都是單欄乾淨排列 */
     .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 1.5rem; }
     .chart-box { background: var(--bg); padding: 1.5rem; border-radius: 1rem; display: flex; flex-direction: column; align-items: center; width: 100%; box-sizing: border-box; }
     .chart-box h4 { margin-top: 0; color: var(--text-light); text-align: center; margin-bottom: 1rem; width: 100%;}
@@ -557,19 +556,40 @@
         if(type === 'mnemonic') p.aiMnemonic = text;
     }
 
+    // --------------------------------------------------------
+    // 💡 終極 AudioContext 音頻解碼引擎
+    // --------------------------------------------------------
+    let audioCtx = null;
+    let currentAudioSource = null;
     let currentPlaybackAudio = null;
     let currentPlaybackBtn = null;
     let originalBtnText = "";
 
     function playAudio(btn, type, data) {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
         if (currentPlaybackAudio) {
             currentPlaybackAudio.pause();
-            if (currentPlaybackBtn) currentPlaybackBtn.innerText = originalBtnText;
-            if (currentPlaybackBtn === btn) {
-                currentPlaybackAudio = null;
-                currentPlaybackBtn = null;
-                return;
-            }
+            currentPlaybackAudio = null;
+        }
+        if (currentAudioSource) {
+            try { currentAudioSource.stop(); } catch(e){}
+            currentAudioSource = null;
+        }
+
+        if (currentPlaybackBtn) {
+            currentPlaybackBtn.innerText = originalBtnText;
+            currentPlaybackBtn.disabled = false;
+        }
+
+        if (currentPlaybackBtn === btn) {
+            currentPlaybackBtn = null;
+            return;
         }
 
         currentPlaybackBtn = btn;
@@ -592,17 +612,45 @@
             apiCall('getAudio', { audioUrl: data }, function(res) {
                 if (res.success) {
                     if (currentPlaybackBtn !== btn) return; 
-                    let audioSrc = `data:${res.mimeType};base64,${res.base64}`;
-                    currentPlaybackAudio = new Audio(audioSrc);
-                    btn.innerText = "🔊 播放中...";
-                    btn.disabled = false;
-                    currentPlaybackAudio.onended = () => { 
-                        if(currentPlaybackBtn === btn) { btn.innerText = originalBtnText; currentPlaybackBtn = null; }
-                    };
-                    currentPlaybackAudio.play().catch(e => {
-                        showToast("播放失敗", "danger");
+                    
+                    btn.innerText = "⏳ 轉碼中...";
+                    try {
+                        const binaryString = atob(res.base64);
+                        const len = binaryString.length;
+                        const bytes = new Uint8Array(len);
+                        for (let i = 0; i < len; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+                        
+                        audioCtx.decodeAudioData(bytes.buffer, function(buffer) {
+                            if (currentPlaybackBtn !== btn) return; 
+
+                            currentAudioSource = audioCtx.createBufferSource();
+                            currentAudioSource.buffer = buffer;
+                            currentAudioSource.connect(audioCtx.destination);
+                            
+                            currentAudioSource.onended = () => {
+                                if(currentPlaybackBtn === btn) { 
+                                    btn.innerText = originalBtnText; 
+                                    currentPlaybackBtn = null; 
+                                    btn.disabled = false;
+                                }
+                            };
+                            
+                            btn.innerText = "🔊 播放中...";
+                            btn.disabled = false;
+                            currentAudioSource.start(0);
+                            
+                        }, function(err) {
+                            showToast("音軌解碼失敗", "danger");
+                            btn.innerText = originalBtnText;
+                            btn.disabled = false;
+                        });
+                    } catch(err) {
+                        showToast("音檔解析錯誤", "danger");
                         btn.innerText = originalBtnText;
-                    });
+                        btn.disabled = false;
+                    }
                 } else {
                     btn.innerText = "❌ 讀取失敗"; btn.disabled = false;
                     setTimeout(() => { if(currentPlaybackBtn === btn) btn.innerText = originalBtnText; }, 2000);
@@ -1240,6 +1288,7 @@
       switchTab('browse');
     }
 
+    // 💡 物理刪除法 + 強制單行：徹底解決手機快取和破圖問題！
     function renderDashboard() {
       let totalLearned = 0;
       let totalCorrect = 0, totalWrong = 0;
@@ -1307,6 +1356,7 @@
              tbody.appendChild(tr);
           }
 
+          // 💡 物理刪除法：直接把裝 Canvas 的容器清空，塞入全新的 Canvas，避開一切快取！
           document.getElementById('accContainer').innerHTML = '<canvas id="accuracyChart"></canvas>';
           let ctxAcc = document.getElementById('accuracyChart').getContext('2d');
           
@@ -1323,6 +1373,7 @@
               options: { maintainAspectRatio: false, responsive: true, layout: { padding: 10 }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } } }
           });
 
+          // 💡 物理刪除法：直接把裝 Canvas 的容器清空，塞入全新的 Canvas
           document.getElementById('profContainer').innerHTML = '<canvas id="profChart"></canvas>';
           let ctxProf = document.getElementById('profChart').getContext('2d');
           
@@ -1733,7 +1784,7 @@
       setTimeout(function() { document.getElementById('choiceWordDisplay').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
     }
 
-    // 💡 關鍵修復：改用最安全的 Try...Catch 和獨立變數，防止舊手機瀏覽器報錯！
+    // 💡 關鍵修復：用最安全的 Try...Catch 和獨立變數，防止舊手機瀏覽器報錯！
     function checkChoice(btnElement, isCorrect) {
       var buttons = document.getElementById('choiceOptions').querySelectorAll('.option-btn');
       for (var i = 0; i < buttons.length; i++) {
@@ -1938,6 +1989,21 @@
       if (isRecording && recognition) recognition.stop();
       if(document.getElementById('autoAudioCheck').checked) speakText(currentQuizItem.word);
       setTimeout(function() { document.getElementById('speakingWord').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
+    }
+    
+    // 💡 關鍵修復：補回被誤刪的傳送資料後端 API 函數
+    function updateBackend(word, isCorrect, userInput, testType, autoProfLevel, nextReviewISO, speakSimilarity) {
+      apiCall('updateTestResult', {
+         sheetName: currentSheetName,
+         word: word,
+         isCorrect: isCorrect,
+         userInput: userInput,
+         testType: testType,
+         username: currentUser,
+         autoProfLevel: autoProfLevel,
+         nextReviewISO: nextReviewISO,
+         speakSimilarity: speakSimilarity
+      });
     }
   </script>
 </body>
