@@ -19,29 +19,41 @@
 </head>
 <body>
 
-  <div id="toast-container"></div>
-
-  <div id="loginScreen" class="overlay">
+<div id="loginScreen" class="overlay">
     <div class="card-box" id="loginBox">
       <h1>🔐 登入單字系統</h1>
       <p>登入專屬帳號，記錄你的學習進度</p>
       <input type="text" id="loginUser" class="input-field" placeholder="輸入暱稱 / 帳號">
       <input type="password" id="loginPass" class="input-field" placeholder="輸入密碼">
       <button class="btn btn-primary" onclick="doLogin()">登入</button>
-      <div class="toggle-link" onclick="toggleAuthMode('register')">沒有帳號？點此註冊</div>
+      <div style="display: flex; justify-content: space-between; width: 100%; margin-top: 0.5rem;">
+        <div class="toggle-link" onclick="toggleAuthMode('forgot')">忘記密碼？</div>
+        <div class="toggle-link" onclick="toggleAuthMode('register')">註冊新帳號</div>
+      </div>
       <div id="loginLoader" class="spinner"></div>
       <div id="loginError" class="error-msg" style="display:none;"></div>
     </div>
     
     <div class="card-box" id="registerBox" style="display:none;">
       <h1>📝 建立新帳號</h1>
-      <p>設定你的專屬暱稱與密碼</p>
+      <p>設定你的專屬暱稱、密碼與信箱</p>
       <input type="text" id="regUser" class="input-field" placeholder="設定暱稱 / 帳號">
       <input type="password" id="regPass" class="input-field" placeholder="設定密碼">
+      <input type="email" id="regEmail" class="input-field" placeholder="輸入常用信箱 (忘記密碼用)">
       <button class="btn btn-primary" style="background-color: var(--success);" onclick="doRegister()">註冊</button>
       <div class="toggle-link" onclick="toggleAuthMode('login')">已有帳號？點此登入</div>
       <div id="regLoader" class="spinner"></div>
       <div id="regError" class="error-msg" style="display:none;"></div>
+    </div>
+
+    <div class="card-box" id="forgotBox" style="display:none;">
+      <h1>📧 忘記密碼</h1>
+      <p>請輸入註冊時的信箱，我們將發送重設連結給您</p>
+      <input type="email" id="forgotEmail" class="input-field" placeholder="輸入註冊信箱">
+      <button class="btn btn-primary" style="background-color: var(--warn);" onclick="doForgotPassword()">發送重設信件</button>
+      <div class="toggle-link" onclick="toggleAuthMode('login')">記起來了？點此登入</div>
+      <div id="forgotLoader" class="spinner"></div>
+      <div id="forgotError" class="error-msg" style="display:none;"></div>
     </div>
   </div>
 

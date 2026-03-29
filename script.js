@@ -244,6 +244,14 @@ function playAudio(btn, type, data) {
 
 function showToast(message, type = 'info') {
   let container = document.getElementById('toast-container');
+  
+  // 加上這段防呆機制：如果 HTML 中找不到容器，就動態建立一個
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+  
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.innerText = message;
@@ -328,26 +336,29 @@ function clearAuthData() {
   localStorage.removeItem('vocab_time');
 }
 
+// 💡 更新切換模式邏輯，加入 forgot 模式
 function toggleAuthMode(mode) {
-  if(mode === 'login') {
-    document.getElementById('loginBox').style.display = 'flex';
-    document.getElementById('registerBox').style.display = 'none';
-  } else {
-    document.getElementById('loginBox').style.display = 'none';
-    document.getElementById('registerBox').style.display = 'flex';
-  }
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('registerBox').style.display = 'none';
+  document.getElementById('forgotBox').style.display = 'none';
+
+  if(mode === 'login') document.getElementById('loginBox').style.display = 'flex';
+  else if(mode === 'register') document.getElementById('registerBox').style.display = 'flex';
+  else if(mode === 'forgot') document.getElementById('forgotBox').style.display = 'flex';
 }
 
+// 💡 防呆版註冊
 function doRegister() {
   var u = document.getElementById('regUser').value.trim();
   var p = document.getElementById('regPass').value.trim();
+  var e = document.getElementById('regEmail').value.trim(); 
   var err = document.getElementById('regError');
-  if(!u || !p) { err.innerText = "帳號與密碼不能為空！"; err.style.display='block'; return; }
+  if(!u || !p || !e) { err.innerText = "帳號、密碼與信箱都不能為空！"; err.style.display='block'; return; }
   
   document.getElementById('regLoader').style.display = 'block';
   err.style.display = 'none';
   
-  apiCall('registerUser', {username: u, password: p}, function(res) {
+  apiCall('registerUser', {username: u, password: p, email: e}, function(res) {
     document.getElementById('regLoader').style.display = 'none';
     if(res.success) {
        showToast(res.message, 'success');
@@ -357,9 +368,14 @@ function doRegister() {
        err.innerText = res.message;
        err.style.display = 'block';
     }
+  }, function(error) { // 🌟 新增錯誤捕捉
+    document.getElementById('regLoader').style.display = 'none';
+    err.innerText = "伺服器連線錯誤，請確認 API 網址是否正確。";
+    err.style.display = 'block';
   });
 }
 
+// 💡 防呆版登入
 function doLogin() {
   var u = document.getElementById('loginUser').value.trim();
   var p = document.getElementById('loginPass').value.trim();
@@ -388,6 +404,36 @@ function doLogin() {
        err.innerText = res.message;
        err.style.display = 'block';
     }
+  }, function(error) { // 🌟 新增錯誤捕捉
+    document.getElementById('loginLoader').style.display = 'none';
+    err.innerText = "伺服器 500 錯誤：請確認後端是否發布為「新版本」。";
+    err.style.display = 'block';
+  });
+}
+
+// 💡 防呆版忘記密碼
+function doForgotPassword() {
+  var e = document.getElementById('forgotEmail').value.trim();
+  var err = document.getElementById('forgotError');
+  if(!e) { err.innerText = "請輸入註冊時的信箱！"; err.style.display='block'; return; }
+
+  document.getElementById('forgotLoader').style.display = 'block';
+  err.style.display = 'none';
+
+  apiCall('forgotPassword', {email: e}, function(res) {
+    document.getElementById('forgotLoader').style.display = 'none';
+    if(res.success) {
+       showToast(res.message, 'success');
+       document.getElementById('forgotEmail').value = '';
+       toggleAuthMode('login');
+    } else {
+       err.innerText = res.message;
+       err.style.display = 'block';
+    }
+  }, function(error) { // 🌟 新增錯誤捕捉
+    document.getElementById('forgotLoader').style.display = 'none';
+    err.innerText = "連線失敗，請檢查後端發布狀態。";
+    err.style.display = 'block';
   });
 }
 
