@@ -177,3 +177,16 @@ main { width: 100%; max-width: 600px; padding: 1rem; box-sizing: border-box; fle
   .dashboard-grid { gap: 1rem; }
   .chart-container { height: 220px; max-width: 100%;}
 }
+
+/* ==========================================
+   🖼️ 單字卡圖片專屬排版 (滿版、置中、手機適應)
+   ========================================== */
+.vocab-image {
+    display: block;
+    width: 100%;               /* 讓圖片寬度直接撐滿卡片的可用空間 */
+    max-height: 280px;         /* 限制最大高度，確保手機版螢幕放得下單字和例句 */
+    object-fit: cover;         /* 保證圖片不變形，完美填滿並自動裁切邊緣 */
+    border-radius: 12px;       /* 加上圓角，讓圖片跟外層卡片一樣有現代感 */
+    margin: 0 auto 1.5rem;     /* 強制絕對置中，並與下方的單字標題保持完美距離 */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* 加上淡淡的立體陰影，質感大升級 */
+}
