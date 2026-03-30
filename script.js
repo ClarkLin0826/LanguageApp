@@ -16,6 +16,34 @@ var userRole = 'free';
 var isCurrentWordAnswered = false; 
 
 // --------------------------------------------------------
+// 🌙 深色模式切換邏輯 (新加入)
+// --------------------------------------------------------
+function initTheme() {
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    const rootElement = document.documentElement;
+    const savedTheme = localStorage.getItem('theme');
+    
+    // 如果之前存的是 dark，就加上 class 並換圖示
+    if (savedTheme === 'dark') {
+        rootElement.classList.add('dark-theme');
+        if(themeToggleBtn) themeToggleBtn.innerText = '☀️';
+    }
+
+    if(themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            rootElement.classList.toggle('dark-theme');
+            if (rootElement.classList.contains('dark-theme')) {
+                localStorage.setItem('theme', 'dark');
+                themeToggleBtn.innerText = '☀️';
+            } else {
+                localStorage.setItem('theme', 'light');
+                themeToggleBtn.innerText = '🌙';
+            }
+        });
+    }
+}
+
+// --------------------------------------------------------
 // 💡 萬能 AI 文字助理引擎 (包含即時錯字分析與記憶法)
 // --------------------------------------------------------
 function getAITextAssistant(taskType, userInput = '') {
@@ -245,7 +273,6 @@ function playAudio(btn, type, data) {
 function showToast(message, type = 'info') {
   let container = document.getElementById('toast-container');
   
-  // 加上這段防呆機制：如果 HTML 中找不到容器，就動態建立一個
   if (!container) {
     container = document.createElement('div');
     container.id = 'toast-container';
@@ -336,7 +363,6 @@ function clearAuthData() {
   localStorage.removeItem('vocab_time');
 }
 
-// 💡 更新切換模式邏輯，加入 forgot 模式
 function toggleAuthMode(mode) {
   document.getElementById('loginBox').style.display = 'none';
   document.getElementById('registerBox').style.display = 'none';
@@ -347,7 +373,6 @@ function toggleAuthMode(mode) {
   else if(mode === 'forgot') document.getElementById('forgotBox').style.display = 'flex';
 }
 
-// 💡 防呆版註冊
 function doRegister() {
   var u = document.getElementById('regUser').value.trim();
   var p = document.getElementById('regPass').value.trim();
@@ -368,14 +393,13 @@ function doRegister() {
        err.innerText = res.message;
        err.style.display = 'block';
     }
-  }, function(error) { // 🌟 新增錯誤捕捉
+  }, function(error) {
     document.getElementById('regLoader').style.display = 'none';
     err.innerText = "伺服器連線錯誤，請確認 API 網址是否正確。";
     err.style.display = 'block';
   });
 }
 
-// 💡 防呆版登入
 function doLogin() {
   var u = document.getElementById('loginUser').value.trim();
   var p = document.getElementById('loginPass').value.trim();
@@ -404,14 +428,13 @@ function doLogin() {
        err.innerText = res.message;
        err.style.display = 'block';
     }
-  }, function(error) { // 🌟 新增錯誤捕捉
+  }, function(error) {
     document.getElementById('loginLoader').style.display = 'none';
     err.innerText = "伺服器 500 錯誤：請確認後端是否發布為「新版本」。";
     err.style.display = 'block';
   });
 }
 
-// 💡 防呆版忘記密碼
 function doForgotPassword() {
   var e = document.getElementById('forgotEmail').value.trim();
   var err = document.getElementById('forgotError');
@@ -430,7 +453,7 @@ function doForgotPassword() {
        err.innerText = res.message;
        err.style.display = 'block';
     }
-  }, function(error) { // 🌟 新增錯誤捕捉
+  }, function(error) { 
     document.getElementById('forgotLoader').style.display = 'none';
     err.innerText = "連線失敗，請檢查後端發布狀態。";
     err.style.display = 'block';
@@ -662,7 +685,7 @@ function renderBlacklist() {
         div.style.display = 'flex';
         div.style.justifyContent = 'space-between';
         div.style.alignItems = 'center';
-        div.style.borderBottom = '1px solid #f3f4f6';
+        div.style.borderBottom = '1px solid var(--border)';
         div.style.padding = '0.5rem 0';
         div.innerHTML = `<span style="font-size: 0.95rem;"><b>${v.word}</b> (${v.translation})</span>
                          <button class="btn-skip" style="font-size:0.8rem; padding:0.3rem 0.6rem;" onclick="restoreBlacklistWord('${v.word}')">恢復</button>`;
@@ -829,7 +852,11 @@ function startApp() {
   fetchDataFromSheet('welcome');
 }
 
+// --------------------------------------------------------
+// 🚀 網頁載入時啟動深色模式
+// --------------------------------------------------------
 window.onload = function() {
+  initTheme(); // 💡 觸發深色模式偵測
   checkAutoLogin(); 
 
   var inputEl = document.getElementById('spellingInput');
@@ -1435,7 +1462,7 @@ function loadNextChoice() {
   var options = [currentQuizItem.translation];
   var otherVocabs = vocabData.filter(function(v) { return v.word !== currentQuizItem.word; });
   otherVocabs.sort(function() { return 0.5 - Math.random(); });
-  for (var i = 0; i < Math.min(3, otherVocabs.length); i++) options.push(otherVocabs[i].translation);
+  for (var i = 0; i < Math.min(3, otherVocabs.length); options.push(otherVocabs[i].translation), i++);
   options.sort(function() { return 0.5 - Math.random(); });
 
   var optionsContainer = document.getElementById('choiceOptions');
@@ -1502,7 +1529,6 @@ function loadNextSpelling() {
   var exampleHtml = currentQuizItem.example;
   var ttsText = currentQuizItem.example; 
   
-  // 💡 還原成只讀取 D 欄的 [ ] 判斷邏輯
   if (exampleHtml) {
     if (exampleHtml.indexOf('[') !== -1 && exampleHtml.indexOf(']') !== -1) {
       ttsText = exampleHtml.replace(/\[|\]/g, '');
@@ -1524,7 +1550,6 @@ function loadNextSpelling() {
   if (window.innerWidth > 768) inputEl.focus(); 
   else inputEl.blur(); 
 
-  // 重置 AI 區塊
   let spellMbox = document.getElementById('spellingMnemonicBox');
   if(spellMbox) {
       spellMbox.style.display = 'none';
@@ -1583,7 +1608,6 @@ function checkSpelling() {
         feedback.innerText = errorMsg; feedback.className = 'feedback danger';
         currentQuizItem.errorLog = currentQuizItem.errorLog ? currentQuizItem.errorLog + ', ' + userInput : userInput;
         
-        // 💡 動態生成「即時分析按鈕」與「專屬顯示區塊」
         let spellMbox = document.getElementById('spellingMnemonicBox');
         if (!spellMbox) {
             spellMbox = document.createElement('div');
@@ -1591,11 +1615,9 @@ function checkSpelling() {
             spellMbox.className = 'ai-feedback-box';
             spellMbox.style.marginBottom = '1.5rem';
             spellMbox.style.borderRadius = '0.5rem';
-            // 將它插入到 feedback 區塊的下方
             document.getElementById('spellingFeedback').parentNode.insertBefore(spellMbox, document.getElementById('spellingNextBtn'));
         }
         
-        // 先把錯字中的單引號濾掉，避免破壞 HTML 屬性
         let safeUserInput = userInput.replace(/'/g, "\\'"); 
         
         let analysisHtml = `
