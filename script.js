@@ -1828,6 +1828,9 @@ function finishPlacementTest() {
 
   let sortedLevels = Object.keys(placementResults).sort((a, b) => getLevelWeight(a) - getLevelWeight(b));
   let recommendedLevel = sortedLevels[0] || "全部等級"; 
+  
+  // 準備要傳給後端的純文字紀錄
+  let detailsForBackend = "";
 
   sortedLevels.forEach(lvl => {
       let res = placementResults[lvl];
@@ -1838,6 +1841,9 @@ function finishPlacementTest() {
                         <span>等級 <b>${lvl}</b></span>
                         <span style="color: ${accColor}; font-weight: bold;">${accuracy}% (${res.correct}/${res.total})</span>
                       </div>`;
+      
+      // 串接給後端的紀錄 (例如: A1(初級): 100% (5/5))
+      detailsForBackend += `${lvl}: ${accuracy}% (${res.correct}/${res.total})\n`;
       
       if (!dropLevelFound && accuracy < 70) {
           recommendedLevel = lvl;
@@ -1856,11 +1862,21 @@ function finishPlacementTest() {
       開始學習！🚀
   `;
 
-  // 💡 追加功能：自動將看板上方的等級過濾器切換到推薦的等級
+  // 💡 追加功能 1：自動將看板上方的等級過濾器切換到推薦的等級
   let levelSelect = document.getElementById('levelSelect');
   if(levelSelect && Array.from(levelSelect.options).some(opt => opt.value === recommendedLevel)) {
       levelSelect.value = recommendedLevel;
       applySort(); // 觸發系統重新整理單字堆
       showToast(`已為您自動載入「${recommendedLevel}」的單字！`, 'success');
+  }
+
+  // 💡 追加功能 2：如果有登入，偷偷把結果傳給後端試算表存檔
+  if (currentUser) {
+      apiCall('savePlacement', {
+          username: currentUser,
+          lang: currentSheetName,
+          recommendedLevel: recommendedLevel,
+          details: detailsForBackend.trim()
+      });
   }
 }
