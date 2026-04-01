@@ -1699,3 +1699,168 @@ function updateBackend(word, isCorrect, userInput, testType, autoProfLevel, next
      speakSimilarity: speakSimilarity
   });
 }
+// ==========================================
+// 🎯 智能分級測驗 (Placement Test) 核心邏輯 (完整版)
+// ==========================================
+let placementWords = [];
+let placementIndex = 0;
+let placementResults = {}; 
+
+function startPlacementTest() {
+  let uniqueLevels = [...new Set(allVocabData.map(w => w.level).filter(l => l))].sort();
+  if(uniqueLevels.length === 0) {
+      showToast("此語系的題庫尚未設定「等級(Level)」，無法進行分級測驗喔！", "warn");
+      return;
+  }
+
+  placementWords = [];
+  placementResults = {};
+  
+  uniqueLevels.forEach(lvl => {
+      let wordsInLevel = allVocabData.filter(w => w.level === lvl);
+      wordsInLevel.sort(() => 0.5 - Math.random());
+      
+      // 每個等級改抽 5 題，增加容錯率 (如果該等級不到5題就全拿)
+      let selectedWords = wordsInLevel.slice(0, 5);
+      placementWords.push(...selectedWords);
+      
+      placementResults[lvl] = { total: selectedWords.length, correct: 0 };
+  });
+
+  if(placementWords.length === 0) return;
+
+  placementWords.sort(() => 0.5 - Math.random());
+  placementIndex = 0;
+
+  document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+  document.getElementById('globalControls').style.display = 'none';
+  document.getElementById('globalProgress').style.display = 'none';
+  document.getElementById('placementTestSection').classList.add('active');
+  
+  document.getElementById('placementQuizArea').style.display = 'block';
+  document.getElementById('placementResultArea').style.display = 'none';
+
+  loadPlacementQuestion();
+}
+
+// 💡 補回遺失的函數：負責把題目渲染到畫面上
+function loadPlacementQuestion() {
+  if (placementIndex >= placementWords.length) {
+      finishPlacementTest();
+      return;
+  }
+
+  let currentItem = placementWords[placementIndex];
+  
+  // 更新進度條
+  let current = placementIndex + 1;
+  let total = placementWords.length;
+  document.getElementById('placementProgressText').innerText = `測驗進度：${current} / ${total}`;
+  document.getElementById('placementProgressFill').style.width = ((current / total) * 100) + "%";
+
+  // 顯示題目
+  document.getElementById('placementWord').innerText = formatWordDisplay(currentItem);
+
+  // 產生選項 (1個正確 + 3個隨機錯誤)
+  let options = [currentItem.translation];
+  let otherVocabs = allVocabData.filter(v => v.word !== currentItem.word);
+  otherVocabs.sort(() => 0.5 - Math.random());
+  for (let i = 0; i < Math.min(3, otherVocabs.length); i++) {
+      options.push(otherVocabs[i].translation);
+  }
+  options.sort(() => 0.5 - Math.random());
+
+  // 渲染選項按鈕
+  let optionsContainer = document.getElementById('placementOptions');
+  optionsContainer.innerHTML = '';
+  options.forEach(opt => {
+      let btn = document.createElement('button');
+      btn.className = 'option-btn'; 
+      btn.innerText = opt;
+      btn.onclick = () => checkPlacementAnswer(opt === currentItem.translation, currentItem.level);
+      optionsContainer.appendChild(btn);
+  });
+}
+
+// 💡 補回遺失的函數：檢查答案對錯
+function checkPlacementAnswer(isCorrect, level) {
+  if (isCorrect) {
+      placementResults[level].correct++;
+  }
+  placementIndex++;
+  loadPlacementQuestion();
+}
+
+// 智能等級權重計算器，確保難度是由簡單到難排序
+function getLevelWeight(lvl) {
+  let str = String(lvl).toLowerCase();
+  
+  if (str.includes('n5')) return 10;
+  if (str.includes('n4')) return 20;
+  if (str.includes('n3')) return 30;
+  if (str.includes('n2')) return 40;
+  if (str.includes('n1')) return 50;
+
+  if (str.includes('1급') || str.includes('1級')) return 10;
+  if (str.includes('2급') || str.includes('2級')) return 20;
+  if (str.includes('3급') || str.includes('3級')) return 30;
+  if (str.includes('4급') || str.includes('4級')) return 40;
+  if (str.includes('5급') || str.includes('5級')) return 50;
+  if (str.includes('6급') || str.includes('6級')) return 60;
+
+  let weight = 50; 
+  if (str.includes('初級') || str.includes('入門') || str.includes('基礎')) weight = 15;
+  if (str.includes('初中級')) weight = 25;
+  if (str.includes('中級') && !str.includes('初中級') && !str.includes('中高級')) weight = 35;
+  if (str.includes('中高級')) weight = 45;
+  if (str.includes('高級') && !str.includes('中高級')) weight = 55;
+  if (str.includes('進階')) weight = 65;
+  
+  return weight;
+}
+
+function finishPlacementTest() {
+  document.getElementById('placementQuizArea').style.display = 'none';
+  document.getElementById('placementResultArea').style.display = 'block';
+  
+  let detailsHtml = "";
+  let dropLevelFound = false;
+
+  let sortedLevels = Object.keys(placementResults).sort((a, b) => getLevelWeight(a) - getLevelWeight(b));
+  let recommendedLevel = sortedLevels[0] || "全部等級"; 
+
+  sortedLevels.forEach(lvl => {
+      let res = placementResults[lvl];
+      let accuracy = Math.round((res.correct / res.total) * 100) || 0;
+      
+      let accColor = accuracy >= 70 ? "var(--success)" : (accuracy >= 40 ? "var(--warn)" : "var(--danger)");
+      detailsHtml += `<div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 0.5rem 0;">
+                        <span>等級 <b>${lvl}</b></span>
+                        <span style="color: ${accColor}; font-weight: bold;">${accuracy}% (${res.correct}/${res.total})</span>
+                      </div>`;
+      
+      if (!dropLevelFound && accuracy < 70) {
+          recommendedLevel = lvl;
+          dropLevelFound = true;
+      }
+  });
+
+  if (!dropLevelFound && sortedLevels.length > 0) {
+      recommendedLevel = sortedLevels[sortedLevels.length - 1];
+  }
+
+  document.getElementById('placementDetails').innerHTML = detailsHtml;
+  document.getElementById('placementRecommendation').innerHTML = `
+      根據測驗結果，系統強烈建議您從<br>
+      <span style="font-size: 2rem; color: var(--premium); font-weight: bold; display: inline-block; margin: 0.5rem 0;">${recommendedLevel}</span><br>
+      開始學習！🚀
+  `;
+
+  // 💡 追加功能：自動將看板上方的等級過濾器切換到推薦的等級
+  let levelSelect = document.getElementById('levelSelect');
+  if(levelSelect && Array.from(levelSelect.options).some(opt => opt.value === recommendedLevel)) {
+      levelSelect.value = recommendedLevel;
+      applySort(); // 觸發系統重新整理單字堆
+      showToast(`已為您自動載入「${recommendedLevel}」的單字！`, 'success');
+  }
+}

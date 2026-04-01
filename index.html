@@ -148,7 +148,12 @@
 
       <div id="dashboard" class="section">
         <h2 style="text-align:center; color:var(--primary); margin: 0 0 1rem 0;">📊 學習成就看板</h2>
-        
+        <div style="text-align:center; margin-bottom: 2.5rem;">
+          <button class="btn btn-primary" style="background-color: var(--premium); width: 100%; max-width: 350px; padding: 1rem; border-radius: 12px; border: none; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 6px 20px rgba(139, 92, 246, 0.6)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(139, 92, 246, 0.4)';" onclick="startPlacementTest()">
+            <span style="font-size: 1.25rem; font-weight: bold;">🎯 智能分級測驗</span>
+            <span style="font-size: 0.85rem; font-weight: normal; opacity: 0.9;">1分鐘快速找出適合你的單字等級</span>
+        </button>
+      </div>
         <div style="text-align:center; margin-bottom: 2rem;">
           <h3 style="margin:0; color:var(--text-light);">累積學習總單字 (全語系)</h3>
           <div style="font-size: 4rem; color: var(--success); font-weight: bold; line-height: 1;" id="dashTotalWords">0</div>
@@ -186,6 +191,30 @@
           </div>
         </div>
       </div>
+
+      <div id="placementTestSection" class="section">
+<div class="vocab-card">
+    <h2 style="color: var(--premium); margin-top: 0;">🎯 智能分級測驗</h2>
+    <div class="progress-container" style="margin-bottom: 1.5rem; padding: 0;">
+      <div class="progress-text" id="placementProgressText">測驗進度：0 / 0</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="placementProgressFill" style="background-color: var(--premium);"></div>
+      </div>
+    </div>
+    
+    <div id="placementQuizArea">
+      <h2 class="word-title" id="placementWord" style="font-size: 2rem; margin-bottom: 1rem;"></h2>
+      <div id="placementOptions" class="options-grid"></div>
+    </div>
+
+    <div id="placementResultArea" style="display: none; text-align: left;">
+      <h3 style="text-align: center; color: var(--primary);">📊 測驗結果與分析</h3>
+      <div id="placementDetails" style="margin-bottom: 1.5rem; line-height: 1.6;"></div>
+      <div id="placementRecommendation" class="ai-feedback-box" style="display: block; border-left-color: var(--success); text-align: center; font-size: 1.1rem; padding: 1.5rem;"></div>
+      <button class="btn btn-primary" onclick="switchTab('dashboard')">完成並回到看板</button>
+    </div>
+  </div>
+</div>
 
       <div id="records" class="section">
         <h2 style="text-align:center; color:var(--primary); margin: 0 0 1.5rem 0;">📜 學習紀錄簿</h2>
