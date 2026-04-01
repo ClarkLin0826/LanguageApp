@@ -1269,8 +1269,10 @@ function switchTab(tabId) {
      document.getElementById('globalProgress').style.display = 'none'; 
      renderAIHistory();
      renderBlacklist();
+     loadPlacementHistory(); // 💡 就是少了這一行！呼叫它去後端拿資料
      return;
-  } else {
+  }
+   else {
      document.getElementById('globalControls').style.display = 'flex';
   }
 
