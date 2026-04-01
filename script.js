@@ -610,7 +610,7 @@ function loadNextAITutor() {
       authBox.style.display = 'none';
       mainBox.style.display = 'block';
       
-      document.getElementById('aiWord').innerText = formatWordDisplay(currentQuizItem);
+      document.getElementById('aiWord').innerHTML = formatWordDisplay(currentQuizItem);
       document.getElementById('aiTranslation').innerText = currentQuizItem.translation;
       
       let displayExample = currentQuizItem.example ? currentQuizItem.example.replace(/\[|\]/g, '') : '無例句';
@@ -1340,9 +1340,25 @@ function renderPhoneticAndPos(phonetic, pos) {
   return html;
 }
 
+// 💡 升級版：支援日文漢字自動模糊
 function formatWordDisplay(item) {
-  var txt = item.word;
-  if (item.kanji) txt += ' (' + item.kanji + ')';
+  let wordTxt = item.word;
+  
+  // 🧠 智能判斷：如果是「日文」語系，且單字本身包含中文字(漢字)，就把單字加上模糊效果
+  let hasKanji = /[\u4E00-\u9FFF]/.test(wordTxt);
+  if (currentSheetName === '日文' && hasKanji) {
+     wordTxt = `<span class="blur-text" onclick="revealText(this)" title="點擊顯示漢字">${wordTxt}</span>`;
+  }
+
+  let txt = wordTxt;
+  if (item.kanji) {
+    // 如果你有把漢字寫在額外的 kanji 欄位，同樣自動把它遮起來
+    if (currentSheetName === '日文') {
+       txt += ` <span class="blur-text" onclick="revealText(this)" style="font-size:0.8em; margin-left:0.3rem;" title="點擊顯示漢字">(${item.kanji})</span>`;
+    } else {
+       txt += ` <span style="font-size:0.8em; margin-left:0.3rem;">(${item.kanji})</span>`;
+    }
+  }
   return txt;
 }
 
@@ -1365,7 +1381,7 @@ function loadBrowseCard() {
 
   currentQuizItem = vocabData[currentBrowseIndex]; 
 
-  document.getElementById('browseWord').innerText = formatWordDisplay(currentQuizItem);
+  document.getElementById('browseWord').innerHTML = formatWordDisplay(currentQuizItem);
   document.getElementById('browseWord').setAttribute('data-speak', currentQuizItem.word);
   document.getElementById('browsePhonetic').innerHTML = renderPhoneticAndPos(currentQuizItem.phonetic, currentQuizItem.pos);
   
@@ -1460,7 +1476,7 @@ function loadNextChoice() {
   currentQuizItem = vocabData[currentBrowseIndex]; 
   updateProgressUI(); 
 
-  document.getElementById('choiceWord').innerText = formatWordDisplay(currentQuizItem);
+  document.getElementById('choiceWord').innerHTML = formatWordDisplay(currentQuizItem);
   document.getElementById('choiceWord').setAttribute('data-speak', currentQuizItem.word);
   document.getElementById('choicePhonetic').innerHTML = renderPhoneticAndPos(currentQuizItem.phonetic, currentQuizItem.pos);
   document.getElementById('choiceFeedback').innerText = '';
@@ -1675,7 +1691,7 @@ function loadNextSpeaking() {
   
   document.getElementById('speakingTranslation').innerText = currentQuizItem.translation;
   document.getElementById('speakingPhonetic').innerHTML = renderPhoneticAndPos(currentQuizItem.phonetic, currentQuizItem.pos);
-  document.getElementById('speakingWord').innerText = formatWordDisplay(currentQuizItem);
+  document.getElementById('speakingWord').innerHTML = formatWordDisplay(currentQuizItem);
   document.getElementById('speakingWord').setAttribute('data-speak', currentQuizItem.word);
   
   var prevSimEl = document.getElementById('speakingPrevSim');
@@ -1768,7 +1784,7 @@ function loadPlacementQuestion() {
   document.getElementById('placementProgressFill').style.width = ((current / total) * 100) + "%";
 
   // 顯示題目
-  document.getElementById('placementWord').innerText = formatWordDisplay(currentItem);
+  document.getElementById('placementWord').innerHTML = formatWordDisplay(currentItem);
 
   // 產生選項 (1個正確 + 3個隨機錯誤)
   let options = [currentItem.translation];
