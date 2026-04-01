@@ -493,6 +493,7 @@ function toggleFullScreen() {
 }
 
 let aiMediaRecorder;
+let aiAudioStream = null; // 💡 新增：用來儲存麥克風硬體串流
 let aiAudioChunks = [];
 let isRecordingAI = false;
 let currentAITarget = ''; 
@@ -500,8 +501,8 @@ let currentAITarget = '';
 async function toggleAIRecording(targetType) {
     if (!isRecordingAI) {
         try {
-            let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            aiMediaRecorder = new MediaRecorder(stream);
+            aiAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true }); // 💡 將串流存入全域變數
+            aiMediaRecorder = new MediaRecorder(aiAudioStream);
             aiAudioChunks = [];
             currentAITarget = targetType;
             
@@ -525,6 +526,12 @@ async function toggleAIRecording(targetType) {
     } else {
         aiMediaRecorder.stop();
         isRecordingAI = false;
+        
+        // 💡 關鍵修復：強制把麥克風硬體「掛斷」，釋放佔用！
+        if (aiAudioStream) {
+            aiAudioStream.getTracks().forEach(track => track.stop());
+            aiAudioStream = null;
+        }
         
         let btnId = currentAITarget === 'word' ? 'aiMicWordBtn' : 'aiMicExampleBtn';
         let fbId = currentAITarget === 'word' ? 'aiWordFeedback' : 'aiExampleFeedback';
@@ -1879,4 +1886,56 @@ function finishPlacementTest() {
           details: detailsForBackend.trim()
       });
   }
+}
+// 💡 載入並渲染分級測驗紀錄
+function loadPlacementHistory() {
+    let container = document.getElementById('placementHistoryContainer');
+    container.innerHTML = '<div class="spinner" style="margin: 0 auto; display: block; border-top-color:var(--premium);"></div><p style="text-align:center; color:var(--text-light); font-size: 0.9rem; margin-top:0.5rem;">正在抓取雲端紀錄...</p>';
+
+    apiCall('getPlacementHistory', { username: currentUser }, function(res) {
+        if(res.success) {
+            container.innerHTML = '';
+            let records = res.data;
+
+            if(records.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:var(--text-light); margin:0; font-size: 0.9rem;">目前還沒有任何測驗紀錄喔！快去成就看板測驗看看吧。</p>';
+                return;
+            }
+
+            records.forEach((r, index) => {
+                let div = document.createElement('div');
+                div.className = 'ai-hist-item';
+                
+                // 標題列：時間、語系、推薦等級
+                let header = document.createElement('div');
+                header.className = 'ai-hist-header';
+                header.onclick = function() {
+                    let content = document.getElementById('place-hist-content-' + index);
+                    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+                };
+                header.innerHTML = `
+                    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem;">
+                        <span style="font-size: 0.85rem; color:var(--text-light);">${r.time}</span>
+                        <span style="font-size: 0.95rem; font-weight:bold; color:var(--text);">${r.lang}</span>
+                        <span style="font-size: 0.9rem; background: #ede9fe; color: var(--premium); padding: 0.1rem 0.5rem; border-radius: 4px;">推薦: <b>${r.level}</b></span>
+                    </div>
+                    <span style="font-size:0.8rem; background:var(--primary); color:white; padding:0.2rem 0.5rem; border-radius:99px; white-space:nowrap;">展開明細 ▼</span>
+                `;
+                
+                // 隱藏的詳細內容 (正確率明細)
+                let content = document.createElement('div');
+                content.id = 'place-hist-content-' + index;
+                content.className = 'ai-hist-content';
+                content.innerHTML = r.details.replace(/\n/g, '<br>'); // 把純文字換行轉成 HTML 換行
+                
+                div.appendChild(header);
+                div.appendChild(content);
+                container.appendChild(div);
+            });
+        } else {
+            container.innerHTML = `<p style="text-align:center; color:var(--danger); margin:0; font-size: 0.9rem;">載入失敗: ${res.message}</p>`;
+        }
+    }, function(err) {
+        container.innerHTML = `<p style="text-align:center; color:var(--danger); margin:0; font-size: 0.9rem;">連線失敗，請檢查網路</p>`;
+    });
 }
