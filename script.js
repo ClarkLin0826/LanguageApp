@@ -15,6 +15,68 @@ var currentUser = '';
 var userRole = 'free'; 
 var isCurrentWordAnswered = false; 
 
+// 💡 例句歷史切換系統
+let currentExampleIndex = 0;
+
+function getAvailableSentences(item) {
+    let list = [];
+    // 1. 抓取原始例句
+    let origEx = item.example ? item.example.replace(/\[|\]/g, '') : '';
+    if (origEx) list.push({ isOriginal: true, ex: origEx, trans: item.exampleTranslation || '' });
+    
+    // 2. 抓取 AI 歷史例句 (智慧解析 JSON 或舊版純文字)
+    if (item.aiSentence) {
+        let parsed = [];
+        try {
+            parsed = JSON.parse(item.aiSentence);
+            if (!Array.isArray(parsed)) parsed = [item.aiSentence];
+        } catch(e) { parsed = [item.aiSentence]; } // 相容舊版資料
+        
+        parsed.forEach(aiText => {
+            let exMatch = aiText.match(/【例句】(.*?)(?=【翻譯】|$)/s);
+            let transMatch = aiText.match(/【翻譯】(.*)/s);
+            let ex = exMatch ? "✨ " + exMatch[1].trim() : "✨ " + aiText;
+            let trans = transMatch ? transMatch[1].trim() : '';
+            list.push({ isOriginal: false, ex: ex, trans: trans });
+        });
+    }
+    // 防呆：如果都沒例句
+    if (list.length === 0) list.push({ isOriginal: true, ex: '無例句', trans: '' });
+    return list;
+}
+
+function renderCurrentSentence() {
+    let list = getAvailableSentences(currentQuizItem);
+    if (currentExampleIndex >= list.length) currentExampleIndex = list.length - 1;
+    let current = list[currentExampleIndex];
+
+    document.getElementById('browseExample').innerText = current.ex;
+    document.getElementById('browseExampleTrans').innerText = current.trans;
+
+    let badge = document.getElementById('sentenceBadge');
+    if (current.isOriginal) {
+        badge.innerText = "預設例句"; badge.style.background = "#e0e7ff"; badge.style.color = "#3730a3";
+        if (current.trans) document.getElementById('browseExampleTrans').classList.remove('revealed');
+        else document.getElementById('browseExampleTrans').classList.add('revealed');
+    } else {
+        badge.innerText = "AI 情境例句"; badge.style.background = "#fce7f3"; badge.style.color = "#be185d";
+        document.getElementById('browseExampleTrans').classList.remove('revealed'); 
+    }
+
+    let cycleBtn = document.getElementById('cycleSentenceBtn');
+    if (list.length > 1) {
+        cycleBtn.style.display = 'inline-block';
+        cycleBtn.innerText = `切換例句 (${currentExampleIndex + 1}/${list.length}) 🔄`;
+    } else cycleBtn.style.display = 'none';
+}
+
+function cycleSentence() {
+    let list = getAvailableSentences(currentQuizItem);
+    if (list.length <= 1) return;
+    currentExampleIndex = (currentExampleIndex + 1) % list.length;
+    renderCurrentSentence();
+}
+
 // --------------------------------------------------------
 // 🌙 深色模式切換邏輯 (新加入)
 // --------------------------------------------------------
@@ -61,25 +123,34 @@ function getAITextAssistant(taskType, userInput = '') {
         btn.innerText = "⏳ 思考中...";
         btn.disabled = true;
 
-        apiCall('getAIAssistant', { taskType: 'sentence', word: word, lang: lang, userRole: userRole }, function(res) {
+        // 💡 讓 AI 參考目前的擴充資訊來造句
+        let extraContext = `相似詞：${currentQuizItem.synonyms || '無'}，反義詞：${currentQuizItem.antonyms || '無'}，字根字尾：${currentQuizItem.roots || '無'}，動詞變化：${currentQuizItem.conjugations || '無'}`;
+
+        apiCall('getAIAssistant', { taskType: 'sentence', word: word, lang: lang, extraInfo: extraContext, userRole: userRole }, function(res) {
             btn.innerText = originalText;
             btn.disabled = false;
             if(res.success) {
-                let reply = res.reply;
-                let exMatch = reply.match(/【例句】(.*?)(?=【翻譯】|$)/s);
-                let transMatch = reply.match(/【翻譯】(.*)/s);
-                
-                if(exMatch) document.getElementById('browseExample').innerText = "✨ " + exMatch[1].trim();
-                if(transMatch) {
-                    document.getElementById('browseExampleTrans').innerText = transMatch[1].trim();
-                    document.getElementById('browseExampleTrans').classList.remove('revealed');
+                // 💡 把新例句「推入」陣列中，而不是覆蓋
+                let aiList = [];
+                if (currentQuizItem.aiSentence) {
+                    try {
+                        aiList = JSON.parse(currentQuizItem.aiSentence);
+                        if (!Array.isArray(aiList)) aiList = [currentQuizItem.aiSentence];
+                    } catch(e) { aiList = [currentQuizItem.aiSentence]; }
                 }
+                aiList.push(res.reply); 
+                let newAiSentenceStr = JSON.stringify(aiList);
+
+                // 儲存並更新畫面
+                currentQuizItem.aiSentence = newAiSentenceStr;
+                updateGlobalProgressLocallyText(word, 'sentence', newAiSentenceStr);
+                apiCall('saveAIText', {sheetName: currentSheetName, word: word, username: currentUser, textType: 'sentence', textData: newAiSentenceStr});
                 
-                currentQuizItem.aiSentence = reply;
-                updateGlobalProgressLocallyText(word, 'sentence', reply);
-                apiCall('saveAIText', {sheetName: currentSheetName, word: word, username: currentUser, textType: 'sentence', textData: reply});
+                let sents = getAvailableSentences(currentQuizItem);
+                currentExampleIndex = sents.length - 1; // 自動切換到最新這句
+                renderCurrentSentence();
                 
-                showToast("✨ AI 已為你生成專屬例句！", "success");
+                showToast("✨ AI 已為你生成全新專屬例句！", "success");
             } else { showToast(res.message, "danger"); }
         }, function(err) {
             btn.innerText = originalText; btn.disabled = false; showToast("連線失敗", "danger");
@@ -109,6 +180,8 @@ function getAITextAssistant(taskType, userInput = '') {
     // 💡 記憶法 (會存入 R 欄)
     else if (taskType === 'mnemonic' || taskType === 'spelling_mnemonic') {
         let box = taskType === 'mnemonic' ? document.getElementById('aiMnemonicBox') : document.getElementById('spellingMnemonicBox');
+        let btn = taskType === 'mnemonic' ? document.getElementById('aiMnemonicBtn') : document.getElementById('spellingMnemonicBtn');
+        let originalBtnText = btn ? btn.innerText : "";
         
         box.style.display = 'block';
         if (taskType === 'spelling_mnemonic') {
@@ -116,18 +189,22 @@ function getAITextAssistant(taskType, userInput = '') {
         } else {
             box.innerHTML = '<div class="spinner" style="display:inline-block; width:15px; height:15px; border-top-color:var(--premium);"></div> AI 正在發功找記憶法...';
         }
-        
-        if (taskType === 'mnemonic') {
-            let btn = document.getElementById('aiMnemonicBtn');
-            if(btn) btn.style.display = 'none';
-        } else {
-            let btn = document.getElementById('spellingMnemonicBtn');
-            if(btn) btn.style.display = 'none';
+
+        // 💡 修正：不要隱藏按鈕，而是把它變成讀取中並禁用
+        if(btn) {
+            btn.innerText = "⏳ 思考中...";
+            btn.disabled = true;
         }
 
         apiCall('getAIAssistant', { taskType: 'mnemonic', word: word, lang: lang, userRole: userRole }, function(res) {
             let loader = document.getElementById('tempMnemonicLoader');
             if(loader) loader.remove();
+
+            // 💡 修正：API 回傳後恢復按鈕，並改成「換個記憶法」
+            if(btn) {
+                btn.disabled = false;
+                btn.innerText = taskType === 'mnemonic' ? "🔄 換個記憶法" : originalBtnText;
+            }
 
             if(res.success) {
                 let mnemonicHtml = `<div style="margin-top: 1rem;">💡 <b>專屬 AI 記憶法：</b><br>${marked.parse(res.reply)}</div>`;
@@ -147,6 +224,8 @@ function getAITextAssistant(taskType, userInput = '') {
         }, function(err) { 
             let loader = document.getElementById('tempMnemonicLoader');
             if(loader) loader.remove();
+            
+            if(btn) { btn.disabled = false; btn.innerText = originalBtnText; }
             
             if (taskType === 'spelling_mnemonic') box.innerHTML += `<div>❌ 連線失敗</div>`;
             else box.innerHTML = `❌ 連線失敗`;
@@ -1340,20 +1419,20 @@ function renderPhoneticAndPos(phonetic, pos) {
   return html;
 }
 
-// 💡 升級版：支援日文漢字自動模糊
+// 💡 升級版：支援日文與韓文漢字自動模糊
 function formatWordDisplay(item) {
   let wordTxt = item.word;
   
-  // 🧠 智能判斷：如果是「日文」語系，且單字本身包含中文字(漢字)，就把單字加上模糊效果
+  // 🧠 智能判斷：如果是「日文」或「韓文」，且單字本身包含中文字(漢字)，就加上模糊效果
   let hasKanji = /[\u4E00-\u9FFF]/.test(wordTxt);
-  if (currentSheetName === '日文' && hasKanji) {
+  if ((currentSheetName === '日文' || currentSheetName === '韓文') && hasKanji) {
      wordTxt = `<span class="blur-text" onclick="revealText(this)" title="點擊顯示漢字">${wordTxt}</span>`;
   }
 
   let txt = wordTxt;
   if (item.kanji) {
-    // 如果你有把漢字寫在額外的 kanji 欄位，同樣自動把它遮起來
-    if (currentSheetName === '日文') {
+    // 如果你有把漢字寫在額外的 kanji 欄位，日文與韓文都自動把它遮起來
+    if (currentSheetName === '日文' || currentSheetName === '韓文') {
        txt += ` <span class="blur-text" onclick="revealText(this)" style="font-size:0.8em; margin-left:0.3rem;" title="點擊顯示漢字">(${item.kanji})</span>`;
     } else {
        txt += ` <span style="font-size:0.8em; margin-left:0.3rem;">(${item.kanji})</span>`;
@@ -1388,23 +1467,18 @@ function loadBrowseCard() {
   document.getElementById('browseTranslation').innerText = currentQuizItem.translation;
   document.getElementById('browseTranslation').classList.remove('revealed');
   
-  if (currentQuizItem.aiSentence) {
-      let exMatch = currentQuizItem.aiSentence.match(/【例句】(.*?)(?=【翻譯】|$)/s);
-      let transMatch = currentQuizItem.aiSentence.match(/【翻譯】(.*)/s);
-      if(exMatch) document.getElementById('browseExample').innerText = "✨ " + exMatch[1].trim();
-      else document.getElementById('browseExample').innerText = "✨ " + currentQuizItem.aiSentence;
-      
-      if(transMatch) {
-          document.getElementById('browseExampleTrans').innerText = transMatch[1].trim();
-          document.getElementById('browseExampleTrans').classList.remove('revealed');
-      }
-  } else {
-      var displayExample = currentQuizItem.example ? currentQuizItem.example.replace(/\[|\]/g, '') : '';
-      document.getElementById('browseExample').innerText = displayExample;
-      document.getElementById('browseExampleTrans').innerText = currentQuizItem.exampleTranslation || '';
-      if(currentQuizItem.exampleTranslation) document.getElementById('browseExampleTrans').classList.remove('revealed');
-      else document.getElementById('browseExampleTrans').classList.add('revealed'); 
-  }
+  // 💡 載入擴充資訊 (相似詞、反義詞等)
+  let hasExtra = false;
+  if (currentQuizItem.synonyms) { document.getElementById('browseSynonyms').style.display = 'block'; document.getElementById('synonymsText').innerText = currentQuizItem.synonyms; hasExtra = true; } else { document.getElementById('browseSynonyms').style.display = 'none'; }
+  if (currentQuizItem.antonyms) { document.getElementById('browseAntonyms').style.display = 'block'; document.getElementById('antonymsText').innerText = currentQuizItem.antonyms; hasExtra = true; } else { document.getElementById('browseAntonyms').style.display = 'none'; }
+  if (currentQuizItem.roots) { document.getElementById('browseRoots').style.display = 'block'; document.getElementById('rootsText').innerText = currentQuizItem.roots; hasExtra = true; } else { document.getElementById('browseRoots').style.display = 'none'; }
+  if (currentQuizItem.conjugations) { document.getElementById('browseConjugations').style.display = 'block'; document.getElementById('conjugationsText').innerText = currentQuizItem.conjugations; hasExtra = true; } else { document.getElementById('browseConjugations').style.display = 'none'; }
+  document.getElementById('browseExtraInfo').style.display = hasExtra ? 'block' : 'none';
+
+  // 💡 渲染例句 (永遠預設顯示「最新」的一句)
+  let sents = getAvailableSentences(currentQuizItem);
+  currentExampleIndex = sents.length - 1; 
+  renderCurrentSentence();
   
   let aiSentenceBtn = document.getElementById('aiSentenceBtn');
   let aiMnemonicBtn = document.getElementById('aiMnemonicBtn');
@@ -1414,7 +1488,8 @@ function loadBrowseCard() {
       aiSentenceBtn.onclick = function() { getAITextAssistant('sentence'); };
       aiSentenceBtn.style.opacity = "1";
       
-      aiMnemonicBtn.innerText = "🆘 AI 記憶法";
+      // 💡 修改這行：如果已經有記憶法，按鈕文字變成「🔄 換個記憶法」
+      aiMnemonicBtn.innerText = currentQuizItem.aiMnemonic ? "🔄 換個記憶法" : "🆘 AI 記憶法";
       aiMnemonicBtn.onclick = function() { getAITextAssistant('mnemonic'); };
       aiMnemonicBtn.style.opacity = "1";
   } else {

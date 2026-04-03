@@ -245,7 +245,19 @@
           <div id="browsePhonetic" class="phonetic"></div>
           
           <div id="browseTranslation" class="translation blur-text" onclick="revealText(this)"></div>
+          
+          <div id="browseExtraInfo" style="text-align: left; margin-bottom: 1rem; font-size: 0.95rem; display: none; background: var(--bg); padding: 1rem; border-radius: 0.5rem; border: 1px dashed var(--border);">
+            <div id="browseSynonyms" style="display:none; margin-bottom: 0.4rem; line-height: 1.4;"><span class="pos-badge" style="background:#d1fae5; color:#065f46;">相似詞</span> <span id="synonymsText" style="color:var(--text-light);"></span></div>
+            <div id="browseAntonyms" style="display:none; margin-bottom: 0.4rem; line-height: 1.4;"><span class="pos-badge" style="background:#fee2e2; color:#991b1b;">反義詞</span> <span id="antonymsText" style="color:var(--text-light);"></span></div>
+            <div id="browseRoots" style="display:none; margin-bottom: 0.4rem; line-height: 1.4;"><span class="pos-badge" style="background:#e0e7ff; color:#3730a3;">字根字尾</span> <span id="rootsText" style="color:var(--text-light);"></span></div>
+            <div id="browseConjugations" style="display:none; margin-bottom: 0.4rem; line-height: 1.4;"><span class="pos-badge" style="background:#fef3c7; color:#92400e;">動詞變化</span> <span id="conjugationsText" style="color:var(--text-light);"></span></div>
+          </div>
+
           <div class="example-box" style="margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+               <span class="pos-badge" id="sentenceBadge" style="background:#e0e7ff; color:#3730a3;">預設例句</span>
+               <button id="cycleSentenceBtn" class="btn-skip" style="font-size: 0.8rem; padding: 0.2rem 0.5rem; display: none;" onclick="cycleSentence()">切換例句 (1/1) 🔄</button>
+            </div>
             <p class="example-text">
               <span id="browseExample"></span>
               <button class="speaker-btn" onclick="speakText(document.getElementById('browseExample').innerText)">🔊</button>
