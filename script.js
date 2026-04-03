@@ -723,7 +723,20 @@ function loadNextAITutor() {
       `;
   }
 }
-
+// 💡 將逗號分隔的字串，轉換成帶有獨立發音按鈕的 HTML
+function formatWordsWithAudio(text) {
+    if (!text) return '';
+    // 支援半形逗號、全形逗號、頓號切割
+    let words = text.split(/[,，、]/); 
+    let htmlArray = words.map(w => {
+        let word = w.trim();
+        if(!word) return '';
+        // 每個單字包裝成一段 HTML，並附上專屬小喇叭
+        return `<span style="display:inline-flex; align-items:center;">${word}<button class="speaker-btn" style="font-size:1rem; padding:0.1rem; margin-left:0.2rem;" onclick="speakText('${word.replace(/'/g, "\\'")}')">🔊</button></span>`;
+    });
+    // 將處理好的單字陣列，用逗號與間距重新組合起來
+    return htmlArray.filter(Boolean).join('<span style="margin-right: 0.5rem;">, </span>');
+}
 function applySpeakingProficiency(item, sim) {
   let nextDate = new Date();
   if (sim < 60) nextDate.setMinutes(nextDate.getMinutes() + 10);
@@ -1467,12 +1480,15 @@ function loadBrowseCard() {
   document.getElementById('browseTranslation').innerText = currentQuizItem.translation;
   document.getElementById('browseTranslation').classList.remove('revealed');
   
-  // 💡 載入擴充資訊 (相似詞、反義詞等)
+  // 💡 載入擴充資訊 (自動將相似詞、反義詞、動詞變化轉為個別發音按鈕)
   let hasExtra = false;
-  if (currentQuizItem.synonyms) { document.getElementById('browseSynonyms').style.display = 'block'; document.getElementById('synonymsText').innerText = currentQuizItem.synonyms; hasExtra = true; } else { document.getElementById('browseSynonyms').style.display = 'none'; }
-  if (currentQuizItem.antonyms) { document.getElementById('browseAntonyms').style.display = 'block'; document.getElementById('antonymsText').innerText = currentQuizItem.antonyms; hasExtra = true; } else { document.getElementById('browseAntonyms').style.display = 'none'; }
+  if (currentQuizItem.synonyms) { document.getElementById('browseSynonyms').style.display = 'block'; document.getElementById('synonymsText').innerHTML = formatWordsWithAudio(currentQuizItem.synonyms); hasExtra = true; } else { document.getElementById('browseSynonyms').style.display = 'none'; }
+  if (currentQuizItem.antonyms) { document.getElementById('browseAntonyms').style.display = 'block'; document.getElementById('antonymsText').innerHTML = formatWordsWithAudio(currentQuizItem.antonyms); hasExtra = true; } else { document.getElementById('browseAntonyms').style.display = 'none'; }
+  
+  // 字根字尾維持純文字不加發音
   if (currentQuizItem.roots) { document.getElementById('browseRoots').style.display = 'block'; document.getElementById('rootsText').innerText = currentQuizItem.roots; hasExtra = true; } else { document.getElementById('browseRoots').style.display = 'none'; }
-  if (currentQuizItem.conjugations) { document.getElementById('browseConjugations').style.display = 'block'; document.getElementById('conjugationsText').innerText = currentQuizItem.conjugations; hasExtra = true; } else { document.getElementById('browseConjugations').style.display = 'none'; }
+  
+  if (currentQuizItem.conjugations) { document.getElementById('browseConjugations').style.display = 'block'; document.getElementById('conjugationsText').innerHTML = formatWordsWithAudio(currentQuizItem.conjugations); hasExtra = true; } else { document.getElementById('browseConjugations').style.display = 'none'; }
   document.getElementById('browseExtraInfo').style.display = hasExtra ? 'block' : 'none';
 
   // 💡 渲染例句 (永遠預設顯示「最新」的一句)
