@@ -125,6 +125,7 @@
         <div class="sort-row">
           <label for="sortSelect">🗂️ 排序：</label>
           <select id="sortSelect" class="sort-select" onchange="applySort()">
+            <option value="saved">⭐ 儲存單字 (集中特訓)</option>
             <option value="sm2" selected>🧠 智能複習 (單字到期優先)</option>
             <option value="random">🎲 隨機 (打亂順序)</option>
             <option value="speakSm2">🗣️ 智能口說複習 (發音到期優先)</option>
@@ -193,28 +194,28 @@
       </div>
 
       <div id="placementTestSection" class="section">
-<div class="vocab-card">
-    <h2 style="color: var(--premium); margin-top: 0;">🎯 智能分級測驗</h2>
-    <div class="progress-container" style="margin-bottom: 1.5rem; padding: 0;">
-      <div class="progress-text" id="placementProgressText">測驗進度：0 / 0</div>
-      <div class="progress-bar">
-        <div class="progress-fill" id="placementProgressFill" style="background-color: var(--premium);"></div>
-      </div>
-    </div>
-    
-    <div id="placementQuizArea">
-      <h2 class="word-title" id="placementWord" style="font-size: 2rem; margin-bottom: 1rem;"></h2>
-      <div id="placementOptions" class="options-grid"></div>
-    </div>
+        <div class="vocab-card">
+            <h2 style="color: var(--premium); margin-top: 0;">🎯 智能分級測驗</h2>
+            <div class="progress-container" style="margin-bottom: 1.5rem; padding: 0;">
+              <div class="progress-text" id="placementProgressText">測驗進度：0 / 0</div>
+              <div class="progress-bar">
+                <div class="progress-fill" id="placementProgressFill" style="background-color: var(--premium);"></div>
+              </div>
+            </div>
+            
+            <div id="placementQuizArea">
+              <h2 class="word-title" id="placementWord" style="font-size: 2rem; margin-bottom: 1rem;"></h2>
+              <div id="placementOptions" class="options-grid"></div>
+            </div>
 
-    <div id="placementResultArea" style="display: none; text-align: left;">
-      <h3 style="text-align: center; color: var(--primary);">📊 測驗結果與分析</h3>
-      <div id="placementDetails" style="margin-bottom: 1.5rem; line-height: 1.6;"></div>
-      <div id="placementRecommendation" class="ai-feedback-box" style="display: block; border-left-color: var(--success); text-align: center; font-size: 1.1rem; padding: 1.5rem;"></div>
-      <button class="btn btn-primary" onclick="switchTab('dashboard')">完成並回到看板</button>
-    </div>
-  </div>
-</div>
+            <div id="placementResultArea" style="display: none; text-align: left;">
+              <h3 style="text-align: center; color: var(--primary);">📊 測驗結果與分析</h3>
+              <div id="placementDetails" style="margin-bottom: 1.5rem; line-height: 1.6;"></div>
+              <div id="placementRecommendation" class="ai-feedback-box" style="display: block; border-left-color: var(--success); text-align: center; font-size: 1.1rem; padding: 1.5rem;"></div>
+              <button class="btn btn-primary" onclick="switchTab('dashboard')">完成並回到看板</button>
+            </div>
+          </div>
+      </div>
 
       <div id="records" class="section">
         <h2 style="text-align:center; color:var(--primary); margin: 0 0 1.5rem 0;">📜 學習紀錄簿</h2>
@@ -241,6 +242,7 @@
           <h2 class="word-title">
             <span id="browseWord"></span>
             <button class="speaker-btn" onclick="speakText(document.getElementById('browseWord').getAttribute('data-speak'))">🔊</button>
+            <button class="speaker-btn" id="browseStarBtn" onclick="toggleSave(currentQuizItem.word)">☆</button>
           </h2>
           <div id="browsePhonetic" class="phonetic"></div>
           
@@ -251,8 +253,6 @@
             <div id="browseAntonyms" style="display:none; margin-bottom: 0.4rem; line-height: 1.4;"><span class="pos-badge" style="background:#fee2e2; color:#991b1b;">反義詞</span> <span id="antonymsText" style="color:var(--text-light);"></span></div>
             <div id="browseRoots" style="display:none; margin-bottom: 0.4rem; line-height: 1.4;"><span class="pos-badge" style="background:#e0e7ff; color:#3730a3;">字根字尾</span> <span id="rootsText" style="color:var(--text-light);"></span></div>
             <div id="browseConjugations" style="display:none; margin-bottom: 0.4rem; line-height: 1.4;"><span class="pos-badge" style="background:#fef3c7; color:#92400e;">動詞變化</span> <span id="conjugationsText" style="color:var(--text-light);"></span></div>
-          </div>
-
           </div>
 
           <div class="example-box" style="margin-bottom: 1rem;">
@@ -294,6 +294,7 @@
           <h2 class="word-title" id="choiceWordDisplay">
             <span id="choiceWord"></span>
             <button class="speaker-btn" onclick="speakText(document.getElementById('choiceWord').getAttribute('data-speak'))">🔊</button>
+            <button class="speaker-btn" id="choiceStarBtn" onclick="toggleSave(currentQuizItem.word)">☆</button>
           </h2>
           <div id="choicePhonetic" class="phonetic"></div>
           <div id="choiceOptions" class="options-grid"></div>
@@ -304,7 +305,10 @@
 
       <div id="spelling" class="section">
         <div class="vocab-card">
-          <div id="spellingTranslation" class="translation"></div>
+          <div style="display: flex; justify-content: center; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <div id="spellingTranslation" class="translation" style="margin: 0;"></div>
+              <button class="speaker-btn" id="spellingStarBtn" onclick="toggleSave(currentQuizItem.word)">☆</button>
+          </div>
           <div id="spellingPhonetic" class="phonetic"></div>
           <div class="example-box">
             <p class="example-text">
@@ -337,6 +341,7 @@
           <h2 class="word-title" style="margin-top: 1rem; font-size: 3rem; color: var(--primary);">
             <span id="speakingWord"></span>
             <button class="speaker-btn" onclick="speakText(document.getElementById('speakingWord').getAttribute('data-speak'))">🔊</button>
+            <button class="speaker-btn" id="speakingStarBtn" onclick="toggleSave(currentQuizItem.word)">☆</button>
           </h2>
           <div id="speakingPrevSim" style="color: var(--warn); font-size: 0.95rem; font-weight: bold; margin-top: 0.5rem; min-height: 1.2rem;"></div>
 
@@ -360,6 +365,7 @@
                  <h2 class="word-title" style="color: var(--premium); margin:0;">
                     <span id="aiWord"></span>
                     <button class="speaker-btn" onclick="speakText(document.getElementById('aiWord').innerText)">🔊</button>
+                    <button class="speaker-btn" id="aiStarBtn" onclick="toggleSave(currentQuizItem.word)">☆</button>
                  </h2>
                  <button id="aiMicWordBtn" class="ai-mini-mic" onclick="toggleAIRecording('word')">🎙️ 測驗單字</button>
              </div>
