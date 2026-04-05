@@ -691,6 +691,7 @@ function loadNextAITutor() {
       
       document.getElementById('aiWord').innerHTML = formatWordDisplay(currentQuizItem);
       document.getElementById('aiTranslation').innerText = currentQuizItem.translation;
+      if(document.getElementById('aiStarBtn')) document.getElementById('aiStarBtn').innerText = currentQuizItem.isSaved ? '⭐' : '☆';
       
       let displayExample = currentQuizItem.example ? currentQuizItem.example.replace(/\[|\]/g, '') : '無例句';
       document.getElementById('aiExample').innerText = displayExample;
@@ -1232,14 +1233,16 @@ function applySort() {
     sortedData = sortedData.filter(item => item.level === selectedLevel);
   }
 
-  if (sortedData.length === 0) {
-     showToast("此等級目前沒有單字喔！為您切換回全部等級。", "warn");
-     document.getElementById('levelSelect').value = 'all';
-     applySort(); 
-     return;
-  }
-
-  if (sortType === 'sm2') {
+  // 💡 新增的儲存單字過濾器
+  if (sortType === 'saved') {
+    sortedData = sortedData.filter(item => item.isSaved);
+    if (sortedData.length === 0) {
+       showToast("目前沒有符合條件的儲存單字喔！為您切回智能複習。", "warn");
+       document.getElementById('sortSelect').value = 'sm2';
+       applySort(); 
+       return;
+    }
+  } else if (sortType === 'sm2') {
     let now = new Date().getTime();
     sortedData = sortedData.filter(item => {
        if (!item.nextReview) return true; 
@@ -1479,6 +1482,7 @@ function loadBrowseCard() {
   
   document.getElementById('browseTranslation').innerText = currentQuizItem.translation;
   document.getElementById('browseTranslation').classList.remove('revealed');
+  if(document.getElementById('browseStarBtn')) document.getElementById('browseStarBtn').innerText = currentQuizItem.isSaved ? '⭐' : '☆';
   
   // 💡 載入擴充資訊 (自動將相似詞、反義詞、動詞變化轉為個別發音按鈕)
   let hasExtra = false;
@@ -1572,6 +1576,7 @@ function loadNextChoice() {
   document.getElementById('choicePhonetic').innerHTML = renderPhoneticAndPos(currentQuizItem.phonetic, currentQuizItem.pos);
   document.getElementById('choiceFeedback').innerText = '';
   document.getElementById('choiceNextBtn').style.display = 'none';
+  if(document.getElementById('choiceStarBtn')) document.getElementById('choiceStarBtn').innerText = currentQuizItem.isSaved ? '⭐' : '☆';
 
   if(document.getElementById('autoAudioCheck').checked) speakText(currentQuizItem.word);
 
@@ -1641,6 +1646,7 @@ function loadNextSpelling() {
 
   document.getElementById('spellingTranslation').innerText = currentQuizItem.translation;
   document.getElementById('spellingPhonetic').innerHTML = renderPhoneticAndPos(currentQuizItem.phonetic, currentQuizItem.pos);
+  if(document.getElementById('spellingStarBtn')) document.getElementById('spellingStarBtn').innerText = currentQuizItem.isSaved ? '⭐' : '☆';
   
   var exampleHtml = currentQuizItem.example;
   var ttsText = currentQuizItem.example; 
@@ -1784,7 +1790,8 @@ function loadNextSpeaking() {
   document.getElementById('speakingPhonetic').innerHTML = renderPhoneticAndPos(currentQuizItem.phonetic, currentQuizItem.pos);
   document.getElementById('speakingWord').innerHTML = formatWordDisplay(currentQuizItem);
   document.getElementById('speakingWord').setAttribute('data-speak', currentQuizItem.word);
-  
+  if(document.getElementById('speakingStarBtn')) document.getElementById('speakingStarBtn').innerText = currentQuizItem.isSaved ? '⭐' : '☆';
+
   var prevSimEl = document.getElementById('speakingPrevSim');
   if (currentQuizItem.speakSimilarity !== undefined && currentQuizItem.speakSimilarity !== null && currentQuizItem.speakSimilarity !== '') {
      prevSimEl.innerText = "💡 上次發音相似度：" + currentQuizItem.speakSimilarity + "%";
@@ -2046,5 +2053,42 @@ function loadPlacementHistory() {
         }
     }, function(err) {
         container.innerHTML = `<p style="text-align:center; color:var(--danger); margin:0; font-size: 0.9rem;">連線失敗，請檢查網路</p>`;
+    });
+}
+// 💡 全新功能：切換儲存單字
+function toggleSave(word) {
+    if(vocabData.length === 0) return;
+    let item = allVocabData.find(v => v.word === word);
+    if (!item) return;
+    item.isSaved = !item.isSaved;
+
+    let starTxt = item.isSaved ? '⭐' : '☆';
+    
+    // 更新所有題型的星號狀態
+    if(document.getElementById('browseStarBtn')) document.getElementById('browseStarBtn').innerText = starTxt;
+    if(document.getElementById('choiceStarBtn')) document.getElementById('choiceStarBtn').innerText = starTxt;
+    if(document.getElementById('spellingStarBtn')) document.getElementById('spellingStarBtn').innerText = starTxt;
+    if(document.getElementById('speakingStarBtn')) document.getElementById('speakingStarBtn').innerText = starTxt;
+    if(document.getElementById('aiStarBtn')) document.getElementById('aiStarBtn').innerText = starTxt;
+
+    // 在本地進度中更新
+    let p = globalProgressData.find(v => v.word === word && v.lang === currentSheetName);
+    if (p) {
+        p.isSaved = item.isSaved;
+    } else {
+        globalProgressData.push({
+            lang: currentSheetName, word: word, isSaved: item.isSaved,
+            cCorrect: 0, cIncorrect: 0, sCorrect: 0, sIncorrect: 0, prof: '', speakSimilarity: '', speakNextReview: '', aiWordFeedback: '', aiExampleFeedback: '', aiWordAudioUrl: '', aiExampleAudioUrl: '', aiSentence: '', aiMnemonic: ''
+        });
+    }
+
+    showToast(item.isSaved ? "已加入儲存清單 ⭐" : "已移除儲存清單 ☆", "success");
+
+    // 通知後端寫入試算表
+    apiCall('toggleSaveWord', {
+        sheetName: currentSheetName,
+        word: word,
+        username: currentUser,
+        isSaved: item.isSaved
     });
 }
