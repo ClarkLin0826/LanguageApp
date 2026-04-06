@@ -978,8 +978,12 @@ window.onload = function() {
 
 document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-  var browseActive = document.getElementById('browse').classList.contains('active');
-  if (browseActive && document.getElementById('appContainer').style.display !== 'none') {
+  
+  var appVisible = document.getElementById('appContainer').style.display !== 'none';
+  if (!appVisible) return;
+
+  // 1. 單字卡 (Browse) 快捷鍵
+  if (document.getElementById('browse').classList.contains('active')) {
     if (e.key === ' ') {
       e.preventDefault(); 
       var transEl = document.getElementById('browseTranslation');
@@ -995,6 +999,39 @@ document.addEventListener('keydown', function(e) {
     else if (e.key === '1') setProficiency('完全忘記');
     else if (e.key === '2') setProficiency('模糊');
     else if (e.key === '3') setProficiency('熟練');
+  }
+  
+  // 💡 2. 選擇題 (Choice) 終極快捷鍵：支援 1~4作答 與 [←][→] 切換
+  if (document.getElementById('choice').classList.contains('active')) {
+    // [→] 右方向鍵：跳下一題 (不論作答與否都可以強制跳轉)
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      nextQuizWord('choice');
+    } 
+    // [←] 左方向鍵：退回上一題
+    else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (vocabData.length > 0) {
+        currentBrowseIndex = (currentBrowseIndex - 1 + vocabData.length) % vocabData.length;
+        isCurrentWordAnswered = false; 
+        loadNextChoice();
+      }
+    } 
+    // 尚未作答：使用 1~4 選擇選項
+    else if (!isCurrentWordAnswered) {
+      var btns = document.getElementById('choiceOptions').querySelectorAll('.option-btn');
+      if (e.key === '1' && btns.length > 0) btns[0].click();
+      else if (e.key === '2' && btns.length > 1) btns[1].click();
+      else if (e.key === '3' && btns.length > 2) btns[2].click();
+      else if (e.key === '4' && btns.length > 3) btns[3].click();
+    } 
+    // 已經作答：按 Enter 或 空白鍵 也可以跳下一題
+    else {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        nextQuizWord('choice');
+      }
+    }
   }
 });
 
@@ -1589,12 +1626,16 @@ function loadNextChoice() {
   var optionsContainer = document.getElementById('choiceOptions');
   optionsContainer.innerHTML = '';
   for (var k = 0; k < options.length; k++) {
-    (function(opt) {
+    // 💡 新增 index 參數
+    (function(opt, index) {
       var btn = document.createElement('button');
-      btn.className = 'option-btn'; btn.innerText = opt;
+      btn.className = 'option-btn'; 
+      btn.setAttribute('data-answer', opt); // 💡 標記真實答案，避免被數字干擾
+      // 💡 加上選項數字 1~4
+      btn.innerHTML = `<span style="color:var(--premium); font-weight:bold; margin-right:0.5rem; opacity:0.8;">${index + 1}.</span>${opt}`;
       btn.onclick = function() { checkChoice(btn, opt === currentQuizItem.translation); };
       optionsContainer.appendChild(btn);
-    })(options[k]);
+    })(options[k], k);
   }
   setTimeout(function() { document.getElementById('choiceWordDisplay').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
 }
@@ -1603,8 +1644,11 @@ function checkChoice(btnElement, isCorrect) {
   var buttons = document.getElementById('choiceOptions').querySelectorAll('.option-btn');
   for (var i = 0; i < buttons.length; i++) {
     buttons[i].disabled = true;
-    if (buttons[i].innerText === currentQuizItem.translation) buttons[i].classList.add('correct');
+    // 💡 改用 data-answer 來核對正確答案，而不是 innerText
+    if (buttons[i].getAttribute('data-answer') === currentQuizItem.translation) buttons[i].classList.add('correct');
   }
+  
+  // ... (下方的 isCurrentWordAnswered = true; 還有 API 呼叫等程式碼保持不變)
   
   isCurrentWordAnswered = true; 
   var feedback = document.getElementById('choiceFeedback');
